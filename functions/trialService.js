@@ -2,7 +2,8 @@
 
 const jwt = require("jsonwebtoken");
 const { v4: uuidv4 } = require("uuid");
-const { db, admin } = require("./firebase");
+const { FieldValue } = require("firebase-admin/firestore");
+const { db } = require("./firebase");
 
 const TRIAL_DURATION_MS = 7 * 24 * 60 * 60 * 1000;
 const TRIALS_COLLECTION = "trials";
@@ -117,7 +118,7 @@ async function startTrial(payload, options) {
     trialEnd,
     systemInfo,
     ip,
-    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    createdAt: FieldValue.serverTimestamp(),
   };
 
   try {

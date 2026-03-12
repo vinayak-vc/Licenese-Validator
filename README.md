@@ -141,6 +141,8 @@ firebase functions:secrets:set JWT_SECRET
 
 ## Setup
 
+0. Ensure Node.js 20+ is installed (Firebase Functions runtime target is Node 20).
+
 1. Install Firebase CLI
 
 ```bash
@@ -183,6 +185,78 @@ From `functions/`:
 
 ```bash
 npm run serve
+```
+
+## Tests
+
+From `functions/`:
+
+```bash
+npm test
+```
+
+Current test coverage includes:
+
+- Service-layer unit tests for `startTrial` and `verifyTrial`
+- HTTP handler tests for `startTrial` and `verifyTrial` routes
+- Validation/error-path checks and expiry/device/token mismatch behavior
+
+## Postman Testing
+
+Import these files into Postman:
+
+- [Trial-Licensing.postman_collection.json](/I:/Vinayak_Projects/LicenceRegistration/postman/Trial-Licensing.postman_collection.json)
+- [Trial-Licensing-Local.postman_environment.json](/I:/Vinayak_Projects/LicenceRegistration/postman/Trial-Licensing-Local.postman_environment.json)
+
+### How to run in Postman
+
+1. Import collection and environment files.
+2. Select the environment.
+3. Set `baseUrl`:
+   - Local emulator: `http://127.0.0.1:5005/demo-licence-registration/us-central1`
+   - Cloud deploy: `https://us-central1-<your-project-id>.cloudfunctions.net`
+4. Run request `1) Start Trial`.
+   - It auto-generates `deviceId` if empty.
+   - It auto-saves `token` and `trialEnd` from response.
+5. Run request `2) Verify Trial`.
+   - Uses saved `token` and `deviceId`.
+6. Optional: run `3) Verify Trial (Invalid Token Demo)` to confirm rejection flow.
+
+### Testing from several LAN systems
+
+- Best option: test against deployed Cloud Functions URL (`https://...cloudfunctions.net`) so every machine can call the same backend.
+- If you test local emulator from multiple machines, you must expose emulator host IP/port and update `baseUrl` accordingly.
+- Use a unique `deviceId` per machine; reusing a `deviceId` will correctly return `Trial already used`.
+
+## Local Testing (Functions + Firestore Emulator)
+
+This repo now includes:
+
+- `firebase.json` (functions + firestore emulator config)
+- `.firebaserc` (default local demo project id)
+- `firestore.rules` (open local rules for emulator testing only)
+- `functions/.secret.local` (local `JWT_SECRET` for emulator)
+
+Run local emulators from project root:
+
+```bash
+npx firebase-tools emulators:start --only functions,firestore
+```
+
+If you are not logged in, emulators can still run for this demo project (`demo-licence-registration`), but deploy and secret management require `firebase login`.
+
+Local endpoint examples:
+
+```bash
+curl -X POST "http://127.0.0.1:5005/demo-licence-registration/us-central1/startTrial" \
+  -H "Content-Type: application/json" \
+  -d "{\"deviceId\":\"device-local-1\",\"systemInfo\":{\"os\":\"Windows 11\",\"cpu\":\"Intel i7\",\"gpu\":\"RTX 3060\"}}"
+```
+
+```bash
+curl -X POST "http://127.0.0.1:5005/demo-licence-registration/us-central1/verifyTrial" \
+  -H "Content-Type: application/json" \
+  -d "{\"deviceId\":\"device-local-1\",\"token\":\"<jwt-token>\"}"
 ```
 
 ## Example cURL Calls
