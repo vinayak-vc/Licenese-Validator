@@ -56,6 +56,19 @@ After deployment, each endpoint URL is:
 - `https://<region>-<project-id>.cloudfunctions.net/startTrial`
 - `https://<region>-<project-id>.cloudfunctions.net/verifyTrial`
 
+## Unified Response Contract
+
+All responses (success/error) use:
+
+```json
+{
+  "message": "string",
+  "token": "string",
+  "statusCode": 1000,
+  "error": null
+}
+```
+
 ### 1) POST `/startTrial`
 
 Request:
@@ -83,8 +96,10 @@ Success response:
 
 ```json
 {
+  "message": "Trial started successfully",
   "token": "<jwt-token>",
-  "trialEnd": 1760000000000
+  "statusCode": 1000,
+  "error": null
 }
 ```
 
@@ -111,22 +126,108 @@ For first-run checks (no local token yet), `token` can be an empty string:
 Behavior:
 
 - Loads Firestore trial record by `deviceId`
-- If record does not exist: returns `valid: false` with `reason: "Trial record not found"`
-- If record exists but token is empty: returns `valid: false` with `reason: "Token required"`
+- If record does not exist: returns status code `9999`
+- If record exists and token is empty while trial active: returns status code `8888`
+- If record exists and token is empty while trial expired: returns status code `7777`
 - Verifies JWT signature (when token provided)
 - Confirms token payload `deviceId` matches request
 - Verifies `tokenId` matches stored token id
 - Checks trial expiry against server time
 
-Response:
+Key verify responses:
 
 ```json
 {
-  "valid": true,
-  "trialEnd": 1760000000000,
-  "reason": "Trial valid"
+  "message": "Device never registered. Show Start Trial popup.",
+  "token": "",
+  "statusCode": 9999,
+  "error": null
 }
 ```
+
+```json
+{
+  "message": "Device registered and trial is active. Start Trial popup is not required.",
+  "token": "",
+  "statusCode": 8888,
+  "error": null
+}
+```
+
+```json
+{
+  "message": "Trial has expired. Contact admin.",
+  "token": "",
+  "statusCode": 7777,
+  "error": "TRIAL_EXPIRED"
+}
+```
+
+```json
+{
+  "message": "Trial verified successfully",
+  "token": "<jwt-token>",
+  "statusCode": 1001,
+  "error": null
+}
+```
+
+### StatusCode Reference
+
+- `1000`: Trial started successfully
+- `1001`: Trial verified successfully
+- `9999`: Device never registered
+- `8888`: Device registered, token missing, trial active
+- `7777`: Device registered, token missing, trial expired
+- `7001`: Invalid token
+- `7002`: Device mismatch
+- `7003`: Token revoked or replaced
+- `7004`: Trial expired
+- `7005`: Corrupt trial record
+- `4000`: Invalid request body
+- `4001`: Invalid deviceId
+- `4002`: Invalid systemInfo
+- `4003`: Invalid systemInfo fields
+- `4004`: Invalid token format
+- `4009`: Trial already used
+- `5000`: Internal server error
+- `5001`: Missing JWT secret
+
+## Input Rules And Error Handling
+
+### `POST /startTrial` input rules
+
+- `deviceId`: required, non-empty string, max 256 chars
+- `systemInfo`: required object
+- `systemInfo.os`: required, non-empty string, max 256 chars
+- `systemInfo.cpu`: required, non-empty string, max 256 chars
+- `systemInfo.gpu`: required, non-empty string, max 256 chars
+
+Error scenarios:
+
+- duplicate device trial -> HTTP `409`, body `statusCode: 4009`
+- invalid body/fields -> HTTP `400`, body `statusCode: 4000/4001/4002/4003`
+- missing server secret -> HTTP `500`, body `statusCode: 5001`
+
+### `POST /verifyTrial` input rules
+
+- `deviceId`: required, non-empty string, max 256 chars
+- `token`: optional for first-run checks, can be:
+  - empty string `""`
+  - `null`
+  - non-empty JWT string (max 4096 chars)
+
+Error/decision scenarios:
+
+- invalid `token` type/oversize -> HTTP `400`, body `statusCode: 4004`
+- device not registered -> HTTP `200`, body `statusCode: 9999`
+- registered + token missing + trial active -> HTTP `200`, body `statusCode: 8888`
+- registered + token missing + trial expired -> HTTP `200`, body `statusCode: 7777`
+- invalid JWT -> HTTP `200`, body `statusCode: 7001`
+- JWT device mismatch -> HTTP `200`, body `statusCode: 7002`
+- tokenId mismatch/revoked token -> HTTP `200`, body `statusCode: 7003`
+- trial expired with token -> HTTP `200`, body `statusCode: 7004`
+- corrupt trial record -> HTTP `200`, body `statusCode: 7005`
 
 ## Security
 
@@ -228,7 +329,7 @@ Import these files into Postman:
    - Cloud deploy: `https://us-central1-<your-project-id>.cloudfunctions.net`
 4. Run request `1) Start Trial`.
    - It auto-generates `deviceId` if empty.
-   - It auto-saves `token` and `trialEnd` from response.
+   - It auto-saves `token` from response.
 5. Run request `2) Verify Trial`.
    - Uses saved `token` and `deviceId`.
 6. Optional: run `3) Verify Trial (Invalid Token Demo)` to confirm rejection flow.

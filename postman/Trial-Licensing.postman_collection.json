@@ -57,13 +57,16 @@
               "const json = pm.response.json();",
               "if (pm.response.code === 200) {",
               "  pm.collectionVariables.set('token', json.token);",
-              "  pm.collectionVariables.set('trialEnd', String(json.trialEnd));",
               "  pm.test('Token exists', function () {",
               "    pm.expect(json.token).to.be.a('string').and.not.empty;",
               "  });",
+              "  pm.test('statusCode is 1000', function () {",
+              "    pm.expect(json.statusCode).to.eql(1000);",
+              "  });",
               "} else {",
               "  pm.test('Trial already used response', function () {",
-              "    pm.expect(json.error).to.eql('Trial already used');",
+              "    pm.expect(json.statusCode).to.eql(4009);",
+              "    pm.expect(json.error).to.eql('TRIAL_ALREADY_USED');",
               "  });",
               "}"
             ]
@@ -106,9 +109,11 @@
               "  pm.response.to.have.status(200);",
               "});",
               "const json = pm.response.json();",
-              "pm.test('Response has valid and reason', function () {",
-              "  pm.expect(json).to.have.property('valid');",
-              "  pm.expect(json).to.have.property('reason');",
+              "pm.test('Response uses standard contract', function () {",
+              "  pm.expect(json).to.have.property('message');",
+              "  pm.expect(json).to.have.property('token');",
+              "  pm.expect(json).to.have.property('statusCode');",
+              "  pm.expect(json).to.have.property('error');",
               "});"
             ]
           }
@@ -148,7 +153,8 @@
               "pm.test('Status is 200 with valid=false', function () {",
               "  pm.response.to.have.status(200);",
               "  const json = pm.response.json();",
-              "  pm.expect(json.valid).to.eql(false);",
+              "  pm.expect(json.statusCode).to.eql(7001);",
+              "  pm.expect(json.error).to.eql('INVALID_TOKEN');",
               "});"
             ]
           }
@@ -167,10 +173,6 @@
     },
     {
       "key": "token",
-      "value": ""
-    },
-    {
-      "key": "trialEnd",
       "value": ""
     },
     {

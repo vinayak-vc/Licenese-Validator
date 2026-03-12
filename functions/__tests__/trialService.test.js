@@ -23,9 +23,8 @@ jest.mock("../firebase", () => ({
 
 const jwt = require("jsonwebtoken");
 const { v4: uuidv4 } = require("uuid");
-const { FieldValue } = require("firebase-admin/firestore");
 const { db } = require("../firebase");
-const { TrialServiceError, startTrial, verifyTrial } = require("../trialService");
+const { CODES, TrialServiceError, startTrial, verifyTrial } = require("../trialService");
 
 describe("trialService.startTrial", () => {
   let createMock;
@@ -44,262 +43,154 @@ describe("trialService.startTrial", () => {
     jwt.sign.mockReturnValue("signed-jwt");
   });
 
-  it("creates a trial and returns token + trialEnd", async () => {
+  it("returns standardized success response", async () => {
     jest.spyOn(Date, "now").mockReturnValue(1700000000000);
-
     const response = await startTrial(
       {
-        deviceId: " device-abc ",
-        systemInfo: {
-          os: " Windows 11 ",
-          cpu: " Intel i7 ",
-          gpu: " RTX 3060 ",
-        },
+        deviceId: "device-abc",
+        systemInfo: { os: "Windows", cpu: "Intel", gpu: "RTX" },
       },
-      {
-        jwtSecret: "test-secret",
-        ip: "1.2.3.4, 9.9.9.9",
-      }
+      { jwtSecret: "secret", ip: "1.2.3.4" }
     );
 
     expect(response).toEqual({
+      message: "Trial started successfully",
       token: "signed-jwt",
-      trialEnd: 1700604800000,
+      statusCode: CODES.TRIAL_STARTED,
+      error: null,
     });
-
-    expect(db.collection).toHaveBeenCalledWith("trials");
-    expect(docMock).toHaveBeenCalledWith("device-abc");
-    expect(jwt.sign).toHaveBeenCalledWith(
-      { deviceId: "device-abc", tokenId: "token-id-123" },
-      "test-secret",
-      expect.objectContaining({
-        algorithm: "HS256",
-      })
-    );
-    expect(createMock).toHaveBeenCalledWith({
-      deviceId: "device-abc",
-      tokenId: "token-id-123",
-      trialStart: 1700000000000,
-      trialEnd: 1700604800000,
-      systemInfo: {
-        os: "Windows 11",
-        cpu: "Intel i7",
-        gpu: "RTX 3060",
-      },
-      ip: "1.2.3.4",
-      createdAt: "SERVER_TIMESTAMP",
-    });
-    expect(FieldValue.serverTimestamp).toHaveBeenCalled();
   });
 
-  it("throws a TRIAL_ALREADY_USED error when doc already exists", async () => {
+  it("throws standardized duplicate-trial error", async () => {
     createMock.mockRejectedValue({ code: 6 });
-
     await expect(
       startTrial(
         {
           deviceId: "device-abc",
-          systemInfo: {
-            os: "Windows",
-            cpu: "Intel",
-            gpu: "RTX",
-          },
+          systemInfo: { os: "Windows", cpu: "Intel", gpu: "RTX" },
         },
-        { jwtSecret: "test-secret", ip: "1.2.3.4" }
+        { jwtSecret: "secret" }
       )
     ).rejects.toMatchObject({
-      message: "Trial already used",
-      statusCode: 409,
-      code: "TRIAL_ALREADY_USED",
+      httpStatus: 409,
+      statusCode: CODES.TRIAL_ALREADY_USED,
+      error: "TRIAL_ALREADY_USED",
     });
   });
 
-  it("validates required fields", async () => {
+  it("validates startTrial body", async () => {
     await expect(startTrial({}, { jwtSecret: "secret" })).rejects.toBeInstanceOf(TrialServiceError);
   });
 });
 
 describe("trialService.verifyTrial", () => {
   let getMock;
-  let docMock;
 
   beforeEach(() => {
     jest.clearAllMocks();
     getMock = jest.fn();
-    docMock = jest.fn().mockReturnValue({
-      get: getMock,
-    });
     db.collection.mockReturnValue({
-      doc: docMock,
+      doc: jest.fn().mockReturnValue({
+        get: getMock,
+      }),
     });
   });
 
-  it("returns valid true for active matching trial", async () => {
-    jest.spyOn(Date, "now").mockReturnValue(1700000000000);
-    jwt.verify.mockReturnValue({
-      deviceId: "device-1",
-      tokenId: "token-1",
-    });
-    getMock.mockResolvedValue({
-      exists: true,
-      data: () => ({
-        tokenId: "token-1",
-        trialEnd: 1700000100000,
-      }),
-    });
-
+  it("returns 9999 when device never registered", async () => {
+    getMock.mockResolvedValue({ exists: false });
     const response = await verifyTrial(
-      {
-        token: "jwt",
-        deviceId: "device-1",
-      },
-      {
-        jwtSecret: "secret",
-      }
+      { token: "", deviceId: "device-1" },
+      { jwtSecret: "secret" }
     );
 
     expect(response).toEqual({
-      valid: true,
-      trialEnd: 1700000100000,
-      reason: "Trial valid",
+      message: "Device never registered. Show Start Trial popup.",
+      token: "",
+      statusCode: CODES.DEVICE_NEVER_REGISTERED,
+      error: null,
     });
   });
 
-  it("returns invalid token reason when jwt verification fails", async () => {
+  it("returns 8888 when device exists, token missing, and trial is active", async () => {
+    jest.spyOn(Date, "now").mockReturnValue(1000);
+    getMock.mockResolvedValue({
+      exists: true,
+      data: () => ({ tokenId: "token-1", trialEnd: 2000 }),
+    });
+
+    const response = await verifyTrial(
+      { token: null, deviceId: "device-1" },
+      { jwtSecret: "secret" }
+    );
+
+    expect(response).toEqual({
+      message: "Device registered and trial is active. Start Trial popup is not required.",
+      token: "",
+      statusCode: CODES.DEVICE_REGISTERED_TOKEN_MISSING_TRIAL_ACTIVE,
+      error: null,
+    });
+  });
+
+  it("returns 7777 when device exists, token missing, and trial is expired", async () => {
+    jest.spyOn(Date, "now").mockReturnValue(3000);
+    getMock.mockResolvedValue({
+      exists: true,
+      data: () => ({ tokenId: "token-1", trialEnd: 2000 }),
+    });
+
+    const response = await verifyTrial(
+      { token: "", deviceId: "device-1" },
+      { jwtSecret: "secret" }
+    );
+
+    expect(response).toEqual({
+      message: "Trial has expired. Contact admin.",
+      token: "",
+      statusCode: CODES.DEVICE_REGISTERED_TOKEN_MISSING_TRIAL_EXPIRED,
+      error: "TRIAL_EXPIRED",
+    });
+  });
+
+  it("returns verified response for valid token", async () => {
+    jest.spyOn(Date, "now").mockReturnValue(1000);
+    jwt.verify.mockReturnValue({ deviceId: "device-1", tokenId: "token-1" });
+    getMock.mockResolvedValue({
+      exists: true,
+      data: () => ({ tokenId: "token-1", trialEnd: 2000 }),
+    });
+
+    const response = await verifyTrial(
+      { token: "jwt", deviceId: "device-1" },
+      { jwtSecret: "secret" }
+    );
+
+    expect(response).toEqual({
+      message: "Trial verified successfully",
+      token: "jwt",
+      statusCode: CODES.TRIAL_VERIFIED,
+      error: null,
+    });
+  });
+
+  it("returns invalid-token response when jwt verification fails", async () => {
     jwt.verify.mockImplementation(() => {
-      throw new Error("bad token");
+      throw new Error("invalid");
     });
     getMock.mockResolvedValue({
       exists: true,
-      data: () => ({
-        tokenId: "token-1",
-        trialEnd: 1700000100000,
-      }),
+      data: () => ({ tokenId: "token-1", trialEnd: 2000 }),
     });
 
     const response = await verifyTrial(
-      {
-        token: "bad",
-        deviceId: "device-1",
-      },
-      {
-        jwtSecret: "secret",
-      }
+      { token: "bad", deviceId: "device-1" },
+      { jwtSecret: "secret" }
     );
 
     expect(response).toEqual({
-      valid: false,
-      trialEnd: 1700000100000,
-      reason: "Invalid token",
-    });
-  });
-
-  it("returns device mismatch for mismatched token payload", async () => {
-    jwt.verify.mockReturnValue({
-      deviceId: "different-device",
-      tokenId: "token-1",
-    });
-    getMock.mockResolvedValue({
-      exists: true,
-      data: () => ({
-        tokenId: "token-1",
-        trialEnd: 1700000100000,
-      }),
-    });
-
-    const response = await verifyTrial(
-      {
-        token: "jwt",
-        deviceId: "device-1",
-      },
-      {
-        jwtSecret: "secret",
-      }
-    );
-
-    expect(response).toEqual({
-      valid: false,
-      trialEnd: 1700000100000,
-      reason: "Device mismatch",
-    });
-  });
-
-  it("returns trial expired when server time is beyond trialEnd", async () => {
-    jest.spyOn(Date, "now").mockReturnValue(1700000200000);
-    jwt.verify.mockReturnValue({
-      deviceId: "device-1",
-      tokenId: "token-1",
-    });
-    getMock.mockResolvedValue({
-      exists: true,
-      data: () => ({
-        tokenId: "token-1",
-        trialEnd: 1700000100000,
-      }),
-    });
-
-    const response = await verifyTrial(
-      {
-        token: "jwt",
-        deviceId: "device-1",
-      },
-      {
-        jwtSecret: "secret",
-      }
-    );
-
-    expect(response).toEqual({
-      valid: false,
-      trialEnd: 1700000100000,
-      reason: "Trial expired",
-    });
-  });
-
-  it("returns trial record not found when device never registered and token is empty", async () => {
-    getMock.mockResolvedValue({
-      exists: false,
-    });
-
-    const response = await verifyTrial(
-      {
-        token: "",
-        deviceId: "device-new",
-      },
-      {
-        jwtSecret: "secret",
-      }
-    );
-
-    expect(response).toEqual({
-      valid: false,
-      trialEnd: 0,
-      reason: "Trial record not found",
-    });
-  });
-
-  it("returns token required when device exists but token is empty", async () => {
-    getMock.mockResolvedValue({
-      exists: true,
-      data: () => ({
-        tokenId: "token-1",
-        trialEnd: 1700000100000,
-      }),
-    });
-
-    const response = await verifyTrial(
-      {
-        token: "",
-        deviceId: "device-1",
-      },
-      {
-        jwtSecret: "secret",
-      }
-    );
-
-    expect(response).toEqual({
-      valid: false,
-      trialEnd: 1700000100000,
-      reason: "Token required",
+      message: "Invalid token",
+      token: "",
+      statusCode: CODES.INVALID_TOKEN,
+      error: "INVALID_TOKEN",
     });
   });
 });

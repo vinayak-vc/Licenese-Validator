@@ -113,3 +113,23 @@
   - Unregistered device with empty token
   - Existing device with empty token
 - Updated `README.md` to document empty-token verify request and expected reasons.
+
+### Updated
+
+- Standardized API response format for all endpoints and all outcomes:
+  - `{ message, token, statusCode, error }`
+- Removed `trialEnd` from all API responses (server still uses it internally for validation).
+- Refactored `functions/trialService.js` with explicit response code catalog and consistent message/error mapping.
+- Implemented requested verify-state codes:
+  - `9999`: device never registered (show Start Trial popup)
+  - `8888`: device registered, token missing, trial active
+  - `7777`: device registered, token missing, trial expired (contact admin)
+- Added/updated additional status codes for token/device/record/validation/internal-error paths.
+- Updated HTTP error handler in `functions/index.js` to return the standardized response body on all error paths.
+- Updated test suites to validate new response contract and code mapping:
+  - `functions/__tests__/trialService.test.js`
+  - `functions/__tests__/index.test.js`
+- Updated Postman assets to validate the new contract and removed obsolete `trialEnd` variable:
+  - `postman/Trial-Licensing.postman_collection.json`
+  - `postman/Trial-Licensing-Local.postman_environment.json`
+- Updated `README.md` with new response contract, status-code reference, and verify behavior documentation.

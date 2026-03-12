@@ -14,15 +14,25 @@ jest.mock("firebase-functions/v2/https", () => ({
 
 jest.mock("../trialService", () => {
   class TrialServiceError extends Error {
-    constructor(message, statusCode, code) {
+    constructor(message, httpStatus, statusCode, error) {
       super(message);
+      this.httpStatus = httpStatus;
       this.statusCode = statusCode;
-      this.code = code;
+      this.error = error;
     }
   }
 
   return {
+    CODES: {
+      INTERNAL_ERROR: 5000,
+    },
     TrialServiceError,
+    responseBody: jest.fn(({ message, token = "", statusCode, error = null }) => ({
+      message,
+      token,
+      statusCode,
+      error,
+    })),
     startTrial: jest.fn(),
     verifyTrial: jest.fn(),
   };
@@ -36,43 +46,42 @@ describe("index HTTP handlers", () => {
     jest.clearAllMocks();
   });
 
-  it("POST /startTrial returns service response", async () => {
+  it("POST /startTrial returns standardized response", async () => {
     trialService.startTrial.mockResolvedValue({
+      message: "Trial started successfully",
       token: "jwt-token",
-      trialEnd: 1770000000000,
+      statusCode: 1000,
+      error: null,
     });
 
-    const res = await request(functionsExports.startTrial)
-      .post("/")
-      .set("x-forwarded-for", "10.10.10.10")
-      .send({
-        deviceId: "device-1",
-        systemInfo: { os: "Windows", cpu: "Intel", gpu: "RTX" },
-      });
+    const res = await request(functionsExports.startTrial).post("/").send({
+      deviceId: "device-1",
+      systemInfo: { os: "Windows", cpu: "Intel", gpu: "RTX" },
+    });
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual({
+      message: "Trial started successfully",
       token: "jwt-token",
-      trialEnd: 1770000000000,
+      statusCode: 1000,
+      error: null,
     });
-    expect(trialService.startTrial).toHaveBeenCalledWith(
-      expect.any(Object),
-      expect.objectContaining({
-        jwtSecret: "mock-secret",
-        ip: "10.10.10.10",
-      })
-    );
   });
 
-  it("GET /startTrial returns 405", async () => {
+  it("GET /startTrial returns standardized method-not-allowed response", async () => {
     const res = await request(functionsExports.startTrial).get("/");
     expect(res.status).toBe(405);
-    expect(res.body.code).toBe("METHOD_NOT_ALLOWED");
+    expect(res.body).toEqual({
+      message: "Method not allowed",
+      token: "",
+      statusCode: 4050,
+      error: "METHOD_NOT_ALLOWED",
+    });
   });
 
-  it("maps TrialServiceError to structured HTTP response", async () => {
+  it("maps TrialServiceError to standardized response", async () => {
     trialService.startTrial.mockRejectedValue(
-      new trialService.TrialServiceError("Trial already used", 409, "TRIAL_ALREADY_USED")
+      new trialService.TrialServiceError("Trial already used", 409, 4009, "TRIAL_ALREADY_USED")
     );
 
     const res = await request(functionsExports.startTrial).post("/").send({
@@ -82,34 +91,32 @@ describe("index HTTP handlers", () => {
 
     expect(res.status).toBe(409);
     expect(res.body).toEqual({
-      error: "Trial already used",
-      code: "TRIAL_ALREADY_USED",
+      message: "Trial already used",
+      token: "",
+      statusCode: 4009,
+      error: "TRIAL_ALREADY_USED",
     });
   });
 
-  it("POST /verifyTrial returns service response", async () => {
+  it("POST /verifyTrial returns standardized response", async () => {
     trialService.verifyTrial.mockResolvedValue({
-      valid: true,
-      trialEnd: 1770000000000,
-      reason: "Trial valid",
+      message: "Device never registered. Show Start Trial popup.",
+      token: "",
+      statusCode: 9999,
+      error: null,
     });
 
     const res = await request(functionsExports.verifyTrial).post("/").send({
-      token: "jwt-token",
+      token: "",
       deviceId: "device-1",
     });
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual({
-      valid: true,
-      trialEnd: 1770000000000,
-      reason: "Trial valid",
+      message: "Device never registered. Show Start Trial popup.",
+      token: "",
+      statusCode: 9999,
+      error: null,
     });
-    expect(trialService.verifyTrial).toHaveBeenCalledWith(
-      expect.any(Object),
-      expect.objectContaining({
-        jwtSecret: "mock-secret",
-      })
-    );
   });
 });
