@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Trial Licensing Admin Panel</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="container">
+      <h1>Trial Licensing Admin</h1>
+      <p class="muted">Manage client trials securely.</p>
+
+      <section class="card" id="authCard">
+        <h2>Admin Login</h2>
+        <label>Email</label>
+        <input id="email" type="email" placeholder="admin@example.com" />
+        <label>Password</label>
+        <input id="password" type="password" placeholder="********" />
+        <button id="loginBtn">Login</button>
+        <p id="authStatus" class="muted"></p>
+      </section>
+
+      <section class="card hidden" id="panelCard">
+        <div class="row">
+          <h2>Actions</h2>
+          <button id="logoutBtn" class="secondary">Logout</button>
+        </div>
+
+        <div class="grid">
+          <form id="createClientForm" class="form-block">
+            <h3>Add New Client</h3>
+            <input id="createDeviceId" placeholder="deviceId" required />
+            <input id="createOs" placeholder="OS (e.g. Windows 11)" required />
+            <input id="createCpu" placeholder="CPU" required />
+            <input id="createGpu" placeholder="GPU" required />
+            <input id="createDays" type="number" placeholder="trialDays (1-365)" value="7" />
+            <button type="submit">Create Client Trial</button>
+          </form>
+
+          <form id="revokeForm" class="form-block">
+            <h3>Revoke Trial</h3>
+            <input id="revokeDeviceId" placeholder="deviceId" required />
+            <button type="submit" class="danger">Revoke Now</button>
+          </form>
+
+          <form id="extendForm" class="form-block">
+            <h3>Extend Trial</h3>
+            <input id="extendDeviceId" placeholder="deviceId" required />
+            <input id="extendDays" type="number" placeholder="extendDays (1-365)" value="7" required />
+            <button type="submit">Extend Trial</button>
+          </form>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>API Response</h2>
+        <pre id="output">{}</pre>
+      </section>
+    </main>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+  </html>

@@ -133,3 +133,32 @@
   - `postman/Trial-Licensing.postman_collection.json`
   - `postman/Trial-Licensing-Local.postman_environment.json`
 - Updated `README.md` with new response contract, status-code reference, and verify behavior documentation.
+
+### Added
+
+- Added secure admin API capabilities in backend:
+  - `POST /adminApi/createClient` (add client + create trial)
+  - `POST /adminApi/revokeTrial` (revoke trial immediately)
+  - `POST /adminApi/extendTrial` (extend trial by days)
+- Added Firebase Auth admin middleware in `functions/index.js`:
+  - Validates bearer token via `admin.auth().verifyIdToken`
+  - Requires custom claim `admin: true`
+  - Returns standardized 4030/4031 responses for unauthorized/forbidden requests
+- Added admin service operations and validation in `functions/trialService.js`:
+  - `adminCreateClient`
+  - `adminRevokeTrial`
+  - `adminExtendTrial`
+  - New status codes for admin workflows (`1100`, `1101`, `1102`) and related validation/auth errors
+- Added lightweight web admin panel:
+  - `admin-panel/index.html`
+  - `admin-panel/app.js`
+  - `admin-panel/styles.css`
+  - Supports login, add client, revoke trial, extend trial, and response display
+- Added Admin Postman collection:
+  - `postman/Admin-Trial-Licensing.postman_collection.json`
+  - Covers create client, revoke trial, and extend trial with admin bearer token
+- Expanded tests:
+  - Updated `functions/__tests__/index.test.js` to include admin route handling
+  - Updated `functions/__tests__/trialService.test.js` to cover admin service actions
+  - Test status: all suites passing
+- Updated `README.md` with admin API docs, auth requirements, admin-claim setup, and admin panel setup instructions.

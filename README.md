@@ -55,6 +55,9 @@ After deployment, each endpoint URL is:
 
 - `https://<region>-<project-id>.cloudfunctions.net/startTrial`
 - `https://<region>-<project-id>.cloudfunctions.net/verifyTrial`
+- `https://<region>-<project-id>.cloudfunctions.net/adminApi/createClient`
+- `https://<region>-<project-id>.cloudfunctions.net/adminApi/revokeTrial`
+- `https://<region>-<project-id>.cloudfunctions.net/adminApi/extendTrial`
 
 ## Unified Response Contract
 
@@ -176,6 +179,9 @@ Key verify responses:
 
 - `1000`: Trial started successfully
 - `1001`: Trial verified successfully
+- `1100`: Admin created client trial
+- `1101`: Admin revoked trial
+- `1102`: Admin extended trial
 - `9999`: Device never registered
 - `8888`: Device registered, token missing, trial active
 - `7777`: Device registered, token missing, trial expired
@@ -192,6 +198,64 @@ Key verify responses:
 - `4009`: Trial already used
 - `5000`: Internal server error
 - `5001`: Missing JWT secret
+
+## Admin API
+
+Admin endpoints require:
+
+- `Authorization: Bearer <Firebase ID token>`
+- Authenticated Firebase user must have custom claim: `admin: true`
+
+### POST `/adminApi/createClient`
+
+Request:
+
+```json
+{
+  "deviceId": "device-123",
+  "systemInfo": {
+    "os": "Windows 11",
+    "cpu": "Intel i7",
+    "gpu": "RTX 3060"
+  },
+  "trialDays": 7
+}
+```
+
+### POST `/adminApi/revokeTrial`
+
+Request:
+
+```json
+{
+  "deviceId": "device-123"
+}
+```
+
+### POST `/adminApi/extendTrial`
+
+Request:
+
+```json
+{
+  "deviceId": "device-123",
+  "extendDays": 7
+}
+```
+
+### Admin Auth Setup
+
+Create admin users in Firebase Authentication, then assign admin claim once:
+
+```js
+// Run in a trusted Node environment with Admin SDK credentials.
+await admin.auth().setCustomUserClaims("<FIREBASE_UID>", { admin: true });
+```
+
+Unauthorized/forbidden responses:
+
+- `4030`: Missing/invalid bearer token
+- `4031`: User is authenticated but not admin
 
 ## Input Rules And Error Handling
 
@@ -319,6 +383,28 @@ Import these files into Postman:
 
 - [Trial-Licensing.postman_collection.json](/I:/Vinayak_Projects/LicenceRegistration/postman/Trial-Licensing.postman_collection.json)
 - [Trial-Licensing-Local.postman_environment.json](/I:/Vinayak_Projects/LicenceRegistration/postman/Trial-Licensing-Local.postman_environment.json)
+- [Admin-Trial-Licensing.postman_collection.json](/I:/Vinayak_Projects/LicenceRegistration/postman/Admin-Trial-Licensing.postman_collection.json)
+
+## Admin Panel
+
+Admin panel files:
+
+- [index.html](/I:/Vinayak_Projects/LicenceRegistration/admin-panel/index.html)
+- [app.js](/I:/Vinayak_Projects/LicenceRegistration/admin-panel/app.js)
+- [styles.css](/I:/Vinayak_Projects/LicenceRegistration/admin-panel/styles.css)
+
+Setup:
+
+1. Open `admin-panel/app.js`
+2. Set `firebaseConfig` with your Firebase web app config
+3. Set `ADMIN_API_BASE` to your deployed function base:
+   - `https://us-central1-<project-id>.cloudfunctions.net/adminApi`
+4. Serve locally (example):
+   - `npx serve admin-panel`
+5. Login with Firebase Auth admin user and use:
+   - Add new client trial
+   - Revoke trial immediately
+   - Extend trial duration
 
 ### How to run in Postman
 
