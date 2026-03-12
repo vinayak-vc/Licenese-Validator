@@ -169,6 +169,13 @@ describe("trialService.verifyTrial", () => {
     jwt.verify.mockImplementation(() => {
       throw new Error("bad token");
     });
+    getMock.mockResolvedValue({
+      exists: true,
+      data: () => ({
+        tokenId: "token-1",
+        trialEnd: 1700000100000,
+      }),
+    });
 
     const response = await verifyTrial(
       {
@@ -182,7 +189,7 @@ describe("trialService.verifyTrial", () => {
 
     expect(response).toEqual({
       valid: false,
-      trialEnd: 0,
+      trialEnd: 1700000100000,
       reason: "Invalid token",
     });
   });
@@ -191,6 +198,13 @@ describe("trialService.verifyTrial", () => {
     jwt.verify.mockReturnValue({
       deviceId: "different-device",
       tokenId: "token-1",
+    });
+    getMock.mockResolvedValue({
+      exists: true,
+      data: () => ({
+        tokenId: "token-1",
+        trialEnd: 1700000100000,
+      }),
     });
 
     const response = await verifyTrial(
@@ -205,7 +219,7 @@ describe("trialService.verifyTrial", () => {
 
     expect(response).toEqual({
       valid: false,
-      trialEnd: 0,
+      trialEnd: 1700000100000,
       reason: "Device mismatch",
     });
   });
@@ -238,6 +252,54 @@ describe("trialService.verifyTrial", () => {
       valid: false,
       trialEnd: 1700000100000,
       reason: "Trial expired",
+    });
+  });
+
+  it("returns trial record not found when device never registered and token is empty", async () => {
+    getMock.mockResolvedValue({
+      exists: false,
+    });
+
+    const response = await verifyTrial(
+      {
+        token: "",
+        deviceId: "device-new",
+      },
+      {
+        jwtSecret: "secret",
+      }
+    );
+
+    expect(response).toEqual({
+      valid: false,
+      trialEnd: 0,
+      reason: "Trial record not found",
+    });
+  });
+
+  it("returns token required when device exists but token is empty", async () => {
+    getMock.mockResolvedValue({
+      exists: true,
+      data: () => ({
+        tokenId: "token-1",
+        trialEnd: 1700000100000,
+      }),
+    });
+
+    const response = await verifyTrial(
+      {
+        token: "",
+        deviceId: "device-1",
+      },
+      {
+        jwtSecret: "secret",
+      }
+    );
+
+    expect(response).toEqual({
+      valid: false,
+      trialEnd: 1700000100000,
+      reason: "Token required",
     });
   });
 });

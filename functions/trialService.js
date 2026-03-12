@@ -64,11 +64,14 @@ function validateVerifyTrialInput(payload) {
   }
 
   const { token, deviceId } = payload;
-  if (!isNonEmptyString(token, 4096)) {
-    throw new TrialServiceError("Invalid token", 400, "INVALID_TOKEN");
-  }
   if (!isNonEmptyString(deviceId, 256)) {
     throw new TrialServiceError("Invalid deviceId", 400, "INVALID_DEVICE_ID");
+  }
+  if (typeof token !== "string") {
+    throw new TrialServiceError("Invalid token", 400, "INVALID_TOKEN");
+  }
+  if (token.length > 4096) {
+    throw new TrialServiceError("Invalid token", 400, "INVALID_TOKEN");
   }
 
   return {
@@ -144,27 +147,6 @@ async function verifyTrial(payload, options) {
     throw new TrialServiceError("JWT secret is not configured", 500, "MISSING_JWT_SECRET");
   }
 
-  let decoded;
-  try {
-    decoded = jwt.verify(token, jwtSecret, {
-      algorithms: ["HS256"],
-    });
-  } catch (error) {
-    return {
-      valid: false,
-      trialEnd: 0,
-      reason: "Invalid token",
-    };
-  }
-
-  if (decoded.deviceId !== deviceId) {
-    return {
-      valid: false,
-      trialEnd: 0,
-      reason: "Device mismatch",
-    };
-  }
-
   const docRef = db.collection(TRIALS_COLLECTION).doc(deviceId);
   const snapshot = await docRef.get();
   if (!snapshot.exists) {
@@ -177,6 +159,35 @@ async function verifyTrial(payload, options) {
 
   const data = snapshot.data();
   const trialEnd = Number(data?.trialEnd || 0);
+
+  if (!token) {
+    return {
+      valid: false,
+      trialEnd,
+      reason: "Token required",
+    };
+  }
+
+  let decoded;
+  try {
+    decoded = jwt.verify(token, jwtSecret, {
+      algorithms: ["HS256"],
+    });
+  } catch (error) {
+    return {
+      valid: false,
+      trialEnd,
+      reason: "Invalid token",
+    };
+  }
+
+  if (decoded.deviceId !== deviceId) {
+    return {
+      valid: false,
+      trialEnd,
+      reason: "Device mismatch",
+    };
+  }
 
   if (!data?.tokenId || decoded.tokenId !== data.tokenId) {
     return {

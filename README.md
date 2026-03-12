@@ -99,11 +99,22 @@ Request:
 }
 ```
 
+For first-run checks (no local token yet), `token` can be an empty string:
+
+```json
+{
+  "token": "",
+  "deviceId": "device-123"
+}
+```
+
 Behavior:
 
-- Verifies JWT signature
-- Confirms token payload `deviceId` matches request
 - Loads Firestore trial record by `deviceId`
+- If record does not exist: returns `valid: false` with `reason: "Trial record not found"`
+- If record exists but token is empty: returns `valid: false` with `reason: "Token required"`
+- Verifies JWT signature (when token provided)
+- Confirms token payload `deviceId` matches request
 - Verifies `tokenId` matches stored token id
 - Checks trial expiry against server time
 

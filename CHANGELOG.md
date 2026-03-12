@@ -100,3 +100,16 @@
   - Local emulator base URL
   - Cloud Functions deployed base URL
 - Documented multi-machine LAN testing guidance and unique `deviceId` requirement per system.
+
+### Updated
+
+- Updated `/verifyTrial` behavior in `functions/trialService.js` to support first-run clients with no token:
+  - Empty string token is now accepted at validation layer.
+  - Firestore record existence is checked before JWT validation.
+  - If no record exists, response is `valid: false` with `reason: "Trial record not found"`.
+  - If record exists but token is empty, response is `valid: false` with `reason: "Token required"`.
+- Adjusted invalid-token/device-mismatch responses to include known `trialEnd` when trial record exists.
+- Expanded tests in `functions/__tests__/trialService.test.js` for:
+  - Unregistered device with empty token
+  - Existing device with empty token
+- Updated `README.md` to document empty-token verify request and expected reasons.
