@@ -289,6 +289,26 @@ Create admin users in Firebase Authentication, then assign admin claim once:
 await admin.auth().setCustomUserClaims("<FIREBASE_UID>", { admin: true });
 ```
 
+This repo includes a ready script:
+
+From `functions/`:
+
+```bash
+npm run set-admin-claim -- --uid <FIREBASE_UID>
+```
+
+Or by email:
+
+```bash
+npm run set-admin-claim -- --email <ADMIN_EMAIL>
+```
+
+Remove admin claim:
+
+```bash
+npm run set-admin-claim -- --uid <FIREBASE_UID> --remove true
+```
+
 Unauthorized/forbidden responses:
 
 - `4030`: Missing/invalid bearer token

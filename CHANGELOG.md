@@ -181,3 +181,16 @@
   - `functions/__tests__/index.test.js` added list-clients route assertion
   - `functions/__tests__/trialService.test.js` added list-clients service assertion
 - Updated `README.md` with `listClients` contract and admin panel client-list usage.
+
+### Added
+
+- Added helper script to manage Firebase admin custom claims:
+  - `functions/scripts/setAdminClaim.js`
+  - Supports:
+    - set admin by UID (`--uid`)
+    - set admin by email (`--email`)
+    - remove admin claim (`--remove true`)
+- Added npm script alias:
+  - `npm run set-admin-claim -- --uid <FIREBASE_UID>`
+- Updated `README.md` with copy-paste admin-claim commands.
+- Fixed argument parser in `setAdminClaim.js` to avoid hanging on flag-only options (e.g. `--help`).
