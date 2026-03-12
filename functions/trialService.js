@@ -14,6 +14,7 @@ const CODES = {
   ADMIN_CLIENT_CREATED: 1100,
   ADMIN_TRIAL_REVOKED: 1101,
   ADMIN_TRIAL_EXTENDED: 1102,
+  ADMIN_CLIENTS_LISTED: 1103,
   DEVICE_NEVER_REGISTERED: 9999,
   DEVICE_REGISTERED_TOKEN_MISSING_TRIAL_ACTIVE: 8888,
   DEVICE_REGISTERED_TOKEN_MISSING_TRIAL_EXPIRED: 7777,
@@ -47,12 +48,13 @@ class TrialServiceError extends Error {
   }
 }
 
-function responseBody({ message, token = "", statusCode, error = null }) {
+function responseBody({ message, token = "", statusCode, error = null, ...extra }) {
   return {
     message,
     token,
     statusCode,
     error,
+    ...extra,
   };
 }
 
@@ -166,6 +168,24 @@ function validateAdminExtendInput(payload) {
   return {
     deviceId,
     extendDays,
+  };
+}
+
+function validateAdminListInput(payload) {
+  if (!payload || typeof payload !== "object") {
+    return {
+      limit: 100,
+      search: "",
+    };
+  }
+
+  const parsedLimit = payload.limit === undefined ? 100 : Number(payload.limit);
+  const limit = Number.isInteger(parsedLimit) && parsedLimit >= 1 && parsedLimit <= 200 ? parsedLimit : 100;
+  const search = isNonEmptyString(payload.search, 256) ? payload.search.trim().toLowerCase() : "";
+
+  return {
+    limit,
+    search,
   };
 }
 
@@ -460,12 +480,51 @@ async function adminExtendTrial(payload) {
   });
 }
 
+async function adminListClients(payload) {
+  const { limit, search } = validateAdminListInput(payload);
+  const querySnapshot = await db
+    .collection(TRIALS_COLLECTION)
+    .orderBy("createdAt", "desc")
+    .limit(limit)
+    .get();
+
+  const now = Date.now();
+  const clients = querySnapshot.docs
+    .map((doc) => {
+      const data = doc.data() || {};
+      const trialEnd = Number(data.trialEnd || 0);
+      return {
+        deviceId: data.deviceId || doc.id,
+        systemInfo: data.systemInfo || {},
+        trialStart: Number(data.trialStart || 0),
+        trialEnd: Number(data.trialEnd || 0),
+        revoked: Boolean(data.revoked),
+        status: trialEnd > now ? "active" : "expired",
+      };
+    })
+    .filter((client) => {
+      if (!search) {
+        return true;
+      }
+      return client.deviceId.toLowerCase().includes(search);
+    });
+
+  return responseBody({
+    message: "Clients listed successfully",
+    token: "",
+    statusCode: CODES.ADMIN_CLIENTS_LISTED,
+    error: null,
+    clients,
+  });
+}
+
 module.exports = {
   CODES,
   TrialServiceError,
   responseBody,
   adminCreateClient,
   adminExtendTrial,
+  adminListClients,
   adminRevokeTrial,
   startTrial,
   verifyTrial,

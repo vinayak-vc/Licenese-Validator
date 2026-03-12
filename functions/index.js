@@ -10,6 +10,7 @@ const {
   responseBody,
   adminCreateClient,
   adminExtendTrial,
+  adminListClients,
   adminRevokeTrial,
   startTrial,
   verifyTrial,
@@ -196,6 +197,17 @@ adminApp.post("/revokeTrial", async (req, res) => {
 adminApp.post("/extendTrial", async (req, res) => {
   try {
     const result = await adminExtendTrial(req.body, {
+      adminUser: req.adminUser,
+    });
+    return res.status(200).json(result);
+  } catch (error) {
+    return sendError(res, error);
+  }
+});
+
+adminApp.post("/listClients", async (req, res) => {
+  try {
+    const result = await adminListClients(req.body, {
       adminUser: req.adminUser,
     });
     return res.status(200).json(result);

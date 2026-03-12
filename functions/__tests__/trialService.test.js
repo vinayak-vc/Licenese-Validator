@@ -29,6 +29,7 @@ const {
   TrialServiceError,
   adminCreateClient,
   adminExtendTrial,
+  adminListClients,
   adminRevokeTrial,
   startTrial,
   verifyTrial,
@@ -207,19 +208,27 @@ describe("trialService.admin actions", () => {
   let getMock;
   let createMock;
   let updateMock;
+  let querySnapshotMock;
 
   beforeEach(() => {
     jest.clearAllMocks();
     getMock = jest.fn();
     createMock = jest.fn().mockResolvedValue(undefined);
     updateMock = jest.fn().mockResolvedValue(undefined);
-    db.collection.mockReturnValue({
+    querySnapshotMock = {
+      docs: [],
+    };
+    const collectionApi = {
       doc: jest.fn().mockReturnValue({
         get: getMock,
         create: createMock,
         update: updateMock,
       }),
-    });
+      orderBy: jest.fn().mockReturnThis(),
+      limit: jest.fn().mockReturnThis(),
+      get: jest.fn().mockResolvedValue(querySnapshotMock),
+    };
+    db.collection.mockReturnValue(collectionApi);
     uuidv4.mockReturnValue("admin-token-id");
     jwt.sign.mockReturnValue("admin-created-token");
   });
@@ -277,5 +286,26 @@ describe("trialService.admin actions", () => {
       statusCode: CODES.ADMIN_TRIAL_EXTENDED,
       error: null,
     });
+  });
+
+  it("adminListClients returns mapped client rows", async () => {
+    querySnapshotMock.docs = [
+      {
+        id: "device-1",
+        data: () => ({
+          deviceId: "device-1",
+          trialStart: 1,
+          trialEnd: Date.now() + 10000,
+          systemInfo: { os: "Windows" },
+          revoked: false,
+        }),
+      },
+    ];
+
+    const response = await adminListClients({ limit: 20, search: "device" });
+
+    expect(response.statusCode).toBe(CODES.ADMIN_CLIENTS_LISTED);
+    expect(Array.isArray(response.clients)).toBe(true);
+    expect(response.clients[0].deviceId).toBe("device-1");
   });
 });

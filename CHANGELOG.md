@@ -162,3 +162,22 @@
   - Updated `functions/__tests__/trialService.test.js` to cover admin service actions
   - Test status: all suites passing
 - Updated `README.md` with admin API docs, auth requirements, admin-claim setup, and admin panel setup instructions.
+
+### Updated
+
+- Added new admin endpoint: `POST /adminApi/listClients`
+  - Returns standardized response plus `clients` array for management UI.
+  - Supports optional `limit` and `search` filter.
+- Enhanced admin panel UI to include registered clients management:
+  - Replaced placeholder hosting page with full admin interface (`admin-panel/index.html`).
+  - Added clients table view with status/system/trial info.
+  - Added refresh/search and row-level actions:
+    - `+7d` extend
+    - `Revoke`
+  - Integrated list refresh after create/revoke/extend actions.
+- Updated backend and tests:
+  - `functions/index.js` wired `/adminApi/listClients`
+  - `functions/trialService.js` added `adminListClients` and status code `1103`
+  - `functions/__tests__/index.test.js` added list-clients route assertion
+  - `functions/__tests__/trialService.test.js` added list-clients service assertion
+- Updated `README.md` with `listClients` contract and admin panel client-list usage.

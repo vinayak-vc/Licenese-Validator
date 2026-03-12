@@ -44,6 +44,7 @@ jest.mock("../trialService", () => {
     startTrial: jest.fn(),
     verifyTrial: jest.fn(),
     adminCreateClient: jest.fn(),
+    adminListClients: jest.fn(),
     adminRevokeTrial: jest.fn(),
     adminExtendTrial: jest.fn(),
   };
@@ -154,6 +155,30 @@ describe("index HTTP handlers", () => {
       token: "new-client-token",
       statusCode: 1100,
       error: null,
+    });
+  });
+
+  it("POST /adminApi/listClients returns client list payload", async () => {
+    trialService.adminListClients.mockResolvedValue({
+      message: "Clients listed successfully",
+      token: "",
+      statusCode: 1103,
+      error: null,
+      clients: [{ deviceId: "device-1", status: "active" }],
+    });
+
+    const res = await request(functionsExports.adminApi)
+      .post("/listClients")
+      .set("Authorization", "Bearer valid-admin-token")
+      .send({ limit: 20 });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      message: "Clients listed successfully",
+      token: "",
+      statusCode: 1103,
+      error: null,
+      clients: [{ deviceId: "device-1", status: "active" }],
     });
   });
 });

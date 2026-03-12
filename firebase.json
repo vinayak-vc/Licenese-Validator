@@ -23,5 +23,13 @@
       "port": 4505
     },
     "singleProjectMode": true
+  },
+  "hosting": {
+    "public": "admin-panel",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ]
   }
 }

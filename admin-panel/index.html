@@ -9,7 +9,7 @@
   <body>
     <main class="container">
       <h1>Trial Licensing Admin</h1>
-      <p class="muted">Manage client trials securely.</p>
+      <p class="muted">Manage clients, revoke trials, and extend access.</p>
 
       <section class="card" id="authCard">
         <h2>Admin Login</h2>
@@ -23,7 +23,7 @@
 
       <section class="card hidden" id="panelCard">
         <div class="row">
-          <h2>Actions</h2>
+          <h2>Admin Actions</h2>
           <button id="logoutBtn" class="secondary">Logout</button>
         </div>
 
@@ -31,17 +31,11 @@
           <form id="createClientForm" class="form-block">
             <h3>Add New Client</h3>
             <input id="createDeviceId" placeholder="deviceId" required />
-            <input id="createOs" placeholder="OS (e.g. Windows 11)" required />
+            <input id="createOs" placeholder="OS" required />
             <input id="createCpu" placeholder="CPU" required />
             <input id="createGpu" placeholder="GPU" required />
             <input id="createDays" type="number" placeholder="trialDays (1-365)" value="7" />
             <button type="submit">Create Client Trial</button>
-          </form>
-
-          <form id="revokeForm" class="form-block">
-            <h3>Revoke Trial</h3>
-            <input id="revokeDeviceId" placeholder="deviceId" required />
-            <button type="submit" class="danger">Revoke Now</button>
           </form>
 
           <form id="extendForm" class="form-block">
@@ -50,6 +44,37 @@
             <input id="extendDays" type="number" placeholder="extendDays (1-365)" value="7" required />
             <button type="submit">Extend Trial</button>
           </form>
+
+          <form id="revokeForm" class="form-block">
+            <h3>Revoke Trial</h3>
+            <input id="revokeDeviceId" placeholder="deviceId" required />
+            <button type="submit" class="danger">Revoke Now</button>
+          </form>
+        </div>
+      </section>
+
+      <section class="card hidden" id="clientsCard">
+        <div class="row row-gap">
+          <h2>Registered Clients</h2>
+          <div class="inline-actions">
+            <input id="searchInput" placeholder="Search deviceId..." />
+            <button id="refreshBtn">Refresh</button>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Device ID</th>
+                <th>Status</th>
+                <th>Trial End</th>
+                <th>System</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="clientsTableBody"></tbody>
+          </table>
         </div>
       </section>
 

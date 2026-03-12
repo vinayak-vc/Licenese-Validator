@@ -58,6 +58,7 @@ After deployment, each endpoint URL is:
 - `https://<region>-<project-id>.cloudfunctions.net/adminApi/createClient`
 - `https://<region>-<project-id>.cloudfunctions.net/adminApi/revokeTrial`
 - `https://<region>-<project-id>.cloudfunctions.net/adminApi/extendTrial`
+- `https://<region>-<project-id>.cloudfunctions.net/adminApi/listClients`
 
 ## Unified Response Contract
 
@@ -182,6 +183,7 @@ Key verify responses:
 - `1100`: Admin created client trial
 - `1101`: Admin revoked trial
 - `1102`: Admin extended trial
+- `1103`: Admin listed clients
 - `9999`: Device never registered
 - `8888`: Device registered, token missing, trial active
 - `7777`: Device registered, token missing, trial expired
@@ -240,6 +242,41 @@ Request:
 {
   "deviceId": "device-123",
   "extendDays": 7
+}
+```
+
+### POST `/adminApi/listClients`
+
+Request:
+
+```json
+{
+  "limit": 200,
+  "search": "device-123"
+}
+```
+
+Response includes `clients` array in addition to standard fields:
+
+```json
+{
+  "message": "Clients listed successfully",
+  "token": "",
+  "statusCode": 1103,
+  "error": null,
+  "clients": [
+    {
+      "deviceId": "device-123",
+      "status": "active",
+      "trialStart": 0,
+      "trialEnd": 0,
+      "systemInfo": {
+        "os": "Windows",
+        "cpu": "Intel",
+        "gpu": "RTX"
+      }
+    }
+  ]
 }
 ```
 
@@ -405,6 +442,8 @@ Setup:
    - Add new client trial
    - Revoke trial immediately
    - Extend trial duration
+   - List/search registered clients
+   - Use row action buttons (`+7d`, `Revoke`) directly from table
 
 ### How to run in Postman
 
