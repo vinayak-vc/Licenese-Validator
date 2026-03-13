@@ -30,12 +30,27 @@ Server time (`Date.now()` in Cloud Functions runtime) is the source of truth for
 
 ## Firestore Data Model
 
-Collection: `trials`  
-Document ID: `deviceId`
+Collection: `projects`  
+Document ID: `projectId`
+
+```json
+{
+  "name": "string",
+  "description": "string",
+  "apiKeyHash": "sha256",
+  "apiKeyPreview": "abc123...f9e1",
+  "active": true,
+  "createdAt": "timestamp"
+}
+```
+
+Collection: `clients`  
+Document ID: `${projectId}__${deviceId}`
 
 ```json
 {
   "deviceId": "string",
+  "projectId": "string",
   "tokenId": "string",
   "trialStart": 0,
   "trialEnd": 0,
@@ -56,9 +71,12 @@ After deployment, each endpoint URL is:
 - `https://<region>-<project-id>.cloudfunctions.net/startTrial`
 - `https://<region>-<project-id>.cloudfunctions.net/verifyTrial`
 - `https://<region>-<project-id>.cloudfunctions.net/adminApi/createClient`
+- `https://<region>-<project-id>.cloudfunctions.net/adminApi/createProject`
 - `https://<region>-<project-id>.cloudfunctions.net/adminApi/revokeTrial`
 - `https://<region>-<project-id>.cloudfunctions.net/adminApi/extendTrial`
 - `https://<region>-<project-id>.cloudfunctions.net/adminApi/listClients`
+- `https://<region>-<project-id>.cloudfunctions.net/adminApi/projects`
+- `https://<region>-<project-id>.cloudfunctions.net/adminApi/projects/{projectId}/clients`
 
 ## Unified Response Contract
 
@@ -79,6 +97,7 @@ Request:
 
 ```json
 {
+  "projectApiKey": "<project-api-key>",
   "deviceId": "device-123",
   "systemInfo": {
     "os": "Windows 11",
@@ -112,28 +131,24 @@ Success response:
 Request:
 
 ```json
-{
-  "token": "<jwt-token>",
-  "deviceId": "device-123"
-}
+{ "projectApiKey": "<project-api-key>", "token": "<jwt-token>", "deviceId": "device-123" }
 ```
 
 For first-run checks (no local token yet), `token` can be an empty string:
 
 ```json
-{
-  "token": "",
-  "deviceId": "device-123"
-}
+{ "projectApiKey": "<project-api-key>", "token": "", "deviceId": "device-123" }
 ```
 
 Behavior:
 
-- Loads Firestore trial record by `deviceId`
+- Resolves `projectApiKey -> projectId`
+- Loads Firestore client record by `projectId + deviceId`
 - If record does not exist: returns status code `9999`
 - If record exists and token is empty while trial active: returns status code `8888`
 - If record exists and token is empty while trial expired: returns status code `7777`
 - Verifies JWT signature (when token provided)
+- Confirms token payload `projectId` matches request project
 - Confirms token payload `deviceId` matches request
 - Verifies `tokenId` matches stored token id
 - Checks trial expiry against server time
@@ -184,6 +199,9 @@ Key verify responses:
 - `1101`: Admin revoked trial
 - `1102`: Admin extended trial
 - `1103`: Admin listed clients
+- `1200`: Admin project created
+- `1201`: Admin projects listed
+- `1202`: Admin project clients listed
 - `9999`: Device never registered
 - `8888`: Device registered, token missing, trial active
 - `7777`: Device registered, token missing, trial expired
@@ -192,12 +210,14 @@ Key verify responses:
 - `7003`: Token revoked or replaced
 - `7004`: Trial expired
 - `7005`: Corrupt trial record
+- `7009`: Project mismatch
 - `4000`: Invalid request body
 - `4005`: Malformed JSON body
 - `4001`: Invalid deviceId
 - `4002`: Invalid systemInfo
 - `4003`: Invalid systemInfo fields
 - `4004`: Invalid token format
+- `4014`: Invalid project API key
 - `4009`: Trial already used
 - `5000`: Internal server error
 - `5001`: Missing JWT secret
@@ -215,6 +235,7 @@ Request:
 
 ```json
 {
+  "projectId": "abc123def456",
   "deviceId": "device-123",
   "systemInfo": {
     "os": "Windows 11",
@@ -231,6 +252,7 @@ Request:
 
 ```json
 {
+  "projectId": "abc123def456",
   "deviceId": "device-123"
 }
 ```
@@ -241,6 +263,7 @@ Request:
 
 ```json
 {
+  "projectId": "abc123def456",
   "deviceId": "device-123",
   "extendDays": 7
 }
@@ -252,6 +275,7 @@ Request:
 
 ```json
 {
+  "projectId": "abc123def456",
   "limit": 200,
   "search": "device-123"
 }
@@ -319,6 +343,7 @@ Unauthorized/forbidden responses:
 
 ### `POST /startTrial` input rules
 
+- `projectApiKey`: required, non-empty string, max 256 chars
 - `deviceId`: required, non-empty string, max 256 chars
 - `systemInfo`: required object
 - `systemInfo.os`: required, non-empty string, max 256 chars
@@ -333,6 +358,7 @@ Error scenarios:
 
 ### `POST /verifyTrial` input rules
 
+- `projectApiKey`: required, non-empty string, max 256 chars
 - `deviceId`: required, non-empty string, max 256 chars
 - `token`: optional for first-run checks, can be:
   - empty string `""`
@@ -342,6 +368,7 @@ Error scenarios:
 Error/decision scenarios:
 
 - invalid `token` type/oversize -> HTTP `400`, body `statusCode: 4004`
+- invalid `projectApiKey` -> HTTP `400`, body `statusCode: 4014`
 - device not registered -> HTTP `200`, body `statusCode: 9999`
 - registered + token missing + trial active -> HTTP `200`, body `statusCode: 8888`
 - registered + token missing + trial expired -> HTTP `200`, body `statusCode: 7777`
@@ -358,6 +385,7 @@ Error/decision scenarios:
 
 ```json
 {
+  "projectId": "string",
   "deviceId": "string",
   "tokenId": "string"
 }
@@ -508,13 +536,13 @@ Local endpoint examples:
 ```bash
 curl -X POST "http://127.0.0.1:5005/demo-licence-registration/us-central1/startTrial" \
   -H "Content-Type: application/json" \
-  -d "{\"deviceId\":\"device-local-1\",\"systemInfo\":{\"os\":\"Windows 11\",\"cpu\":\"Intel i7\",\"gpu\":\"RTX 3060\"}}"
+  -d "{\"projectApiKey\":\"<project-api-key>\",\"deviceId\":\"device-local-1\",\"systemInfo\":{\"os\":\"Windows 11\",\"cpu\":\"Intel i7\",\"gpu\":\"RTX 3060\"}}"
 ```
 
 ```bash
 curl -X POST "http://127.0.0.1:5005/demo-licence-registration/us-central1/verifyTrial" \
   -H "Content-Type: application/json" \
-  -d "{\"deviceId\":\"device-local-1\",\"token\":\"<jwt-token>\"}"
+  -d "{\"projectApiKey\":\"<project-api-key>\",\"deviceId\":\"device-local-1\",\"token\":\"<jwt-token>\"}"
 ```
 
 ## Example cURL Calls
@@ -524,7 +552,7 @@ Start trial:
 ```bash
 curl -X POST "https://<region>-<project-id>.cloudfunctions.net/startTrial" \
   -H "Content-Type: application/json" \
-  -d "{\"deviceId\":\"device-123\",\"systemInfo\":{\"os\":\"Windows 11\",\"cpu\":\"Intel i7\",\"gpu\":\"RTX 3060\"}}"
+  -d "{\"projectApiKey\":\"<project-api-key>\",\"deviceId\":\"device-123\",\"systemInfo\":{\"os\":\"Windows 11\",\"cpu\":\"Intel i7\",\"gpu\":\"RTX 3060\"}}"
 ```
 
 Verify trial:
@@ -532,12 +560,33 @@ Verify trial:
 ```bash
 curl -X POST "https://<region>-<project-id>.cloudfunctions.net/verifyTrial" \
   -H "Content-Type: application/json" \
-  -d "{\"deviceId\":\"device-123\",\"token\":\"<jwt-token>\"}"
+  -d "{\"projectApiKey\":\"<project-api-key>\",\"deviceId\":\"device-123\",\"token\":\"<jwt-token>\"}"
 ```
 
 ## Production Notes
 
-- One-trial-per-device enforced by Firestore document ID (`deviceId`)
+- One-trial-per-device-per-project enforced by Firestore document ID (`${projectId}__${deviceId}`)
+- Trial tokens are project-scoped (`projectId` in JWT payload)
 - Trial creation is race-safe via Firestore `create()` semantics
 - Client time is ignored; server time is always used for validity checks
 - Input validation and structured error responses included
+### POST `/adminApi/createProject`
+
+Request:
+
+```json
+{
+  "name": "Mining Simulator",
+  "description": "Trial licensing for mining simulator"
+}
+```
+
+Response includes `projectId` and one-time `projectApiKey`.
+
+### GET `/adminApi/projects`
+
+Lists all projects.
+
+### GET `/adminApi/projects/{projectId}/clients`
+
+Lists clients belonging to one project.
