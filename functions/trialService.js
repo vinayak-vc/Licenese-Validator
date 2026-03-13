@@ -11,6 +11,10 @@ const TRIALS_COLLECTION = "trials";
 const CODES = {
   TRIAL_STARTED: 1000,
   TRIAL_VERIFIED: 1001,
+  ADMIN_CLIENT_CREATED: 1100,
+  ADMIN_TRIAL_REVOKED: 1101,
+  ADMIN_TRIAL_EXTENDED: 1102,
+  ADMIN_CLIENTS_LISTED: 1103,
   DEVICE_NEVER_REGISTERED: 9999,
   DEVICE_REGISTERED_TOKEN_MISSING_TRIAL_ACTIVE: 8888,
   DEVICE_REGISTERED_TOKEN_MISSING_TRIAL_EXPIRED: 7777,
@@ -19,12 +23,17 @@ const CODES = {
   TOKEN_REVOKED_OR_REPLACED: 7003,
   TRIAL_EXPIRED: 7004,
   CORRUPT_TRIAL_RECORD: 7005,
+  TRIAL_NOT_FOUND: 7006,
   TRIAL_ALREADY_USED: 4009,
   INVALID_BODY: 4000,
   INVALID_DEVICE_ID: 4001,
   INVALID_SYSTEM_INFO: 4002,
   INVALID_SYSTEM_INFO_FIELDS: 4003,
-  INVALID_TOKEN: 4004,
+  INVALID_TOKEN_FORMAT: 4004,
+  INVALID_TRIAL_DAYS: 4010,
+  INVALID_EXTEND_DAYS: 4011,
+  UNAUTHORIZED: 4030,
+  FORBIDDEN: 4031,
   MISSING_JWT_SECRET: 5001,
   INTERNAL_ERROR: 5000,
 };
@@ -39,12 +48,13 @@ class TrialServiceError extends Error {
   }
 }
 
-function responseBody({ message, token = "", statusCode, error = null }) {
+function responseBody({ message, token = "", statusCode, error = null, ...extra }) {
   return {
     message,
     token,
     statusCode,
     error,
+    ...extra,
   };
 }
 
@@ -102,15 +112,80 @@ function validateVerifyTrialInput(payload) {
 
   // Allow null/empty token for first-run device state checks.
   if (token !== null && typeof token !== "string") {
-    throw new TrialServiceError("Invalid token", 400, CODES.INVALID_TOKEN, "INVALID_TOKEN");
+    throw new TrialServiceError("Invalid token", 400, CODES.INVALID_TOKEN_FORMAT, "INVALID_TOKEN");
   }
   if (typeof token === "string" && token.length > 4096) {
-    throw new TrialServiceError("Invalid token", 400, CODES.INVALID_TOKEN, "INVALID_TOKEN");
+    throw new TrialServiceError("Invalid token", 400, CODES.INVALID_TOKEN_FORMAT, "INVALID_TOKEN");
   }
 
   return {
     token: typeof token === "string" ? token.trim() : "",
     deviceId: deviceId.trim(),
+  };
+}
+
+function validateAdminCreateClientInput(payload) {
+  const { deviceId, systemInfo, trialDays } = validateStartTrialInput(payload);
+  const normalizedTrialDays = trialDays === undefined ? 7 : Number(trialDays);
+  if (!Number.isInteger(normalizedTrialDays) || normalizedTrialDays < 1 || normalizedTrialDays > 365) {
+    throw new TrialServiceError(
+      "Invalid trialDays. Allowed range: 1-365",
+      400,
+      CODES.INVALID_TRIAL_DAYS,
+      "INVALID_TRIAL_DAYS"
+    );
+  }
+
+  return {
+    deviceId,
+    systemInfo,
+    trialDays: normalizedTrialDays,
+  };
+}
+
+function validateAdminDeviceInput(payload) {
+  if (!payload || typeof payload !== "object") {
+    throw new TrialServiceError("Invalid request body", 400, CODES.INVALID_BODY, "INVALID_BODY");
+  }
+  if (!isNonEmptyString(payload.deviceId, 256)) {
+    throw new TrialServiceError("Invalid deviceId", 400, CODES.INVALID_DEVICE_ID, "INVALID_DEVICE_ID");
+  }
+  return { deviceId: payload.deviceId.trim() };
+}
+
+function validateAdminExtendInput(payload) {
+  const { deviceId } = validateAdminDeviceInput(payload);
+  const extendDays = Number(payload.extendDays);
+  if (!Number.isInteger(extendDays) || extendDays < 1 || extendDays > 365) {
+    throw new TrialServiceError(
+      "Invalid extendDays. Allowed range: 1-365",
+      400,
+      CODES.INVALID_EXTEND_DAYS,
+      "INVALID_EXTEND_DAYS"
+    );
+  }
+
+  return {
+    deviceId,
+    extendDays,
+  };
+}
+
+function validateAdminListInput(payload) {
+  if (!payload || typeof payload !== "object") {
+    return {
+      limit: 100,
+      search: "",
+    };
+  }
+
+  const parsedLimit = payload.limit === undefined ? 100 : Number(payload.limit);
+  const limit = Number.isInteger(parsedLimit) && parsedLimit >= 1 && parsedLimit <= 200 ? parsedLimit : 100;
+  const search = isNonEmptyString(payload.search, 256) ? payload.search.trim().toLowerCase() : "";
+
+  return {
+    limit,
+    search,
   };
 }
 
@@ -289,10 +364,168 @@ async function verifyTrial(payload, options) {
   });
 }
 
+async function adminCreateClient(payload, options) {
+  const { deviceId, systemInfo, trialDays } = validateAdminCreateClientInput(payload);
+  const jwtSecret = options?.jwtSecret;
+  const ip = normalizeIp(options?.ip);
+
+  if (!isNonEmptyString(jwtSecret, 4096)) {
+    throw new TrialServiceError(
+      "JWT secret is not configured",
+      500,
+      CODES.MISSING_JWT_SECRET,
+      "MISSING_JWT_SECRET"
+    );
+  }
+
+  const now = Date.now();
+  const trialStart = now;
+  const trialEnd = now + trialDays * 24 * 60 * 60 * 1000;
+  const tokenId = uuidv4();
+
+  const token = jwt.sign(
+    {
+      deviceId,
+      tokenId,
+    },
+    jwtSecret,
+    {
+      algorithm: "HS256",
+      expiresIn: Math.max(1, Math.floor((trialEnd - now) / 1000)),
+    }
+  );
+
+  const docRef = db.collection(TRIALS_COLLECTION).doc(deviceId);
+  const trialDoc = {
+    deviceId,
+    tokenId,
+    trialStart,
+    trialEnd,
+    systemInfo,
+    ip,
+    createdAt: FieldValue.serverTimestamp(),
+    createdBy: "admin",
+  };
+
+  try {
+    await docRef.create(trialDoc);
+  } catch (error) {
+    if (error?.code === 6 || error?.code === "already-exists") {
+      throw new TrialServiceError(
+        "Trial already exists for this device",
+        409,
+        CODES.TRIAL_ALREADY_USED,
+        "TRIAL_ALREADY_USED"
+      );
+    }
+    throw error;
+  }
+
+  return responseBody({
+    message: "Client added and trial created",
+    token,
+    statusCode: CODES.ADMIN_CLIENT_CREATED,
+    error: null,
+  });
+}
+
+async function adminRevokeTrial(payload) {
+  const { deviceId } = validateAdminDeviceInput(payload);
+  const docRef = db.collection(TRIALS_COLLECTION).doc(deviceId);
+  const snapshot = await docRef.get();
+  if (!snapshot.exists) {
+    throw new TrialServiceError("Trial not found", 404, CODES.TRIAL_NOT_FOUND, "TRIAL_NOT_FOUND");
+  }
+
+  await docRef.update({
+    trialEnd: Date.now() - 1,
+    tokenId: uuidv4(),
+    revokedAt: FieldValue.serverTimestamp(),
+    revoked: true,
+  });
+
+  return responseBody({
+    message: "Trial revoked successfully",
+    token: "",
+    statusCode: CODES.ADMIN_TRIAL_REVOKED,
+    error: null,
+  });
+}
+
+async function adminExtendTrial(payload) {
+  const { deviceId, extendDays } = validateAdminExtendInput(payload);
+  const docRef = db.collection(TRIALS_COLLECTION).doc(deviceId);
+  const snapshot = await docRef.get();
+  if (!snapshot.exists) {
+    throw new TrialServiceError("Trial not found", 404, CODES.TRIAL_NOT_FOUND, "TRIAL_NOT_FOUND");
+  }
+
+  const data = snapshot.data() || {};
+  const now = Date.now();
+  const currentEnd = Number(data.trialEnd || 0);
+  const base = Number.isFinite(currentEnd) && currentEnd > now ? currentEnd : now;
+  const updatedTrialEnd = base + extendDays * 24 * 60 * 60 * 1000;
+
+  await docRef.update({
+    trialEnd: updatedTrialEnd,
+    revoked: false,
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+
+  return responseBody({
+    message: "Trial extended successfully",
+    token: "",
+    statusCode: CODES.ADMIN_TRIAL_EXTENDED,
+    error: null,
+  });
+}
+
+async function adminListClients(payload) {
+  const { limit, search } = validateAdminListInput(payload);
+  const querySnapshot = await db
+    .collection(TRIALS_COLLECTION)
+    .orderBy("createdAt", "desc")
+    .limit(limit)
+    .get();
+
+  const now = Date.now();
+  const clients = querySnapshot.docs
+    .map((doc) => {
+      const data = doc.data() || {};
+      const trialEnd = Number(data.trialEnd || 0);
+      return {
+        deviceId: data.deviceId || doc.id,
+        systemInfo: data.systemInfo || {},
+        trialStart: Number(data.trialStart || 0),
+        trialEnd: Number(data.trialEnd || 0),
+        revoked: Boolean(data.revoked),
+        status: trialEnd > now ? "active" : "expired",
+      };
+    })
+    .filter((client) => {
+      if (!search) {
+        return true;
+      }
+      return client.deviceId.toLowerCase().includes(search);
+    });
+
+  return responseBody({
+    message: "Clients listed successfully",
+    token: "",
+    statusCode: CODES.ADMIN_CLIENTS_LISTED,
+    error: null,
+    clients,
+  });
+}
+
 module.exports = {
   CODES,
   TrialServiceError,
   responseBody,
+  adminCreateClient,
+  adminExtendTrial,
+  adminListClients,
+  adminRevokeTrial,
   startTrial,
   verifyTrial,
 };

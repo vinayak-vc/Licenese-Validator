@@ -12,6 +12,14 @@ jest.mock("firebase-functions/v2/https", () => ({
   onRequest: jest.fn((options, app) => app),
 }));
 
+jest.mock("../firebase", () => ({
+  admin: {
+    auth: jest.fn(() => ({
+      verifyIdToken: jest.fn(async () => ({ uid: "admin-uid", admin: true })),
+    })),
+  },
+}));
+
 jest.mock("../trialService", () => {
   class TrialServiceError extends Error {
     constructor(message, httpStatus, statusCode, error) {
@@ -35,6 +43,10 @@ jest.mock("../trialService", () => {
     })),
     startTrial: jest.fn(),
     verifyTrial: jest.fn(),
+    adminCreateClient: jest.fn(),
+    adminListClients: jest.fn(),
+    adminRevokeTrial: jest.fn(),
+    adminExtendTrial: jest.fn(),
   };
 });
 
@@ -117,6 +129,56 @@ describe("index HTTP handlers", () => {
       token: "",
       statusCode: 9999,
       error: null,
+    });
+  });
+
+  it("POST /adminApi/createClient returns standardized response", async () => {
+    trialService.adminCreateClient.mockResolvedValue({
+      message: "Client added and trial created",
+      token: "new-client-token",
+      statusCode: 1100,
+      error: null,
+    });
+
+    const res = await request(functionsExports.adminApi)
+      .post("/createClient")
+      .set("Authorization", "Bearer valid-admin-token")
+      .send({
+        deviceId: "device-1",
+        systemInfo: { os: "Windows", cpu: "Intel", gpu: "RTX" },
+        trialDays: 7,
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      message: "Client added and trial created",
+      token: "new-client-token",
+      statusCode: 1100,
+      error: null,
+    });
+  });
+
+  it("POST /adminApi/listClients returns client list payload", async () => {
+    trialService.adminListClients.mockResolvedValue({
+      message: "Clients listed successfully",
+      token: "",
+      statusCode: 1103,
+      error: null,
+      clients: [{ deviceId: "device-1", status: "active" }],
+    });
+
+    const res = await request(functionsExports.adminApi)
+      .post("/listClients")
+      .set("Authorization", "Bearer valid-admin-token")
+      .send({ limit: 20 });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      message: "Clients listed successfully",
+      token: "",
+      statusCode: 1103,
+      error: null,
+      clients: [{ deviceId: "device-1", status: "active" }],
     });
   });
 });

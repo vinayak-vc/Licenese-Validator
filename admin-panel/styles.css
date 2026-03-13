@@ -1,0 +1,149 @@
+:root {
+  --bg: #f7f8fc;
+  --card: #ffffff;
+  --text: #162031;
+  --muted: #5d6b82;
+  --border: #d9e0ee;
+  --primary: #165dff;
+  --danger: #d7263d;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  background: linear-gradient(120deg, #f7f8fc 0%, #eef3ff 100%);
+  color: var(--text);
+}
+
+.container {
+  max-width: 980px;
+  margin: 2rem auto;
+  padding: 0 1rem 2rem;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1rem;
+  margin-top: 1rem;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.hidden {
+  display: none;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.row-gap {
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.inline-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1rem;
+}
+
+.form-block {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.75rem;
+  background: #fbfcff;
+}
+
+label,
+input,
+button {
+  display: block;
+  width: 100%;
+}
+
+input {
+  margin-top: 0.5rem;
+  margin-bottom: 0.75rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid #cdd7ea;
+}
+
+button {
+  border: 0;
+  border-radius: 8px;
+  padding: 0.65rem 0.75rem;
+  cursor: pointer;
+  background: var(--primary);
+  color: #fff;
+  font-weight: 600;
+}
+
+button.secondary {
+  width: auto;
+  background: #324055;
+}
+
+button.danger {
+  background: var(--danger);
+}
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 0.75rem;
+}
+
+th,
+td {
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  padding: 0.6rem 0.5rem;
+  font-size: 0.92rem;
+}
+
+th {
+  background: #f7f9ff;
+}
+
+.cell-actions {
+  min-width: 140px;
+}
+
+button.mini {
+  display: inline-block;
+  width: auto;
+  margin-right: 0.4rem;
+  padding: 0.35rem 0.55rem;
+  font-size: 0.82rem;
+}
+
+pre {
+  background: #111827;
+  color: #d1fae5;
+  border-radius: 8px;
+  padding: 0.75rem;
+  overflow: auto;
+  min-height: 140px;
+}

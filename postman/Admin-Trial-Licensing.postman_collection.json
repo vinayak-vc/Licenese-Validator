@@ -1,0 +1,111 @@
+{
+  "info": {
+    "name": "Trial Licensing Admin API",
+    "_postman_id": "2c0d5d4f-3c1a-4fc4-9f80-3d2fcedf9099",
+    "description": "Admin endpoints for creating, revoking, and extending trials.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Create Client Trial",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{adminIdToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"deviceId\": \"{{deviceId}}\",\n  \"systemInfo\": {\n    \"os\": \"Windows 11\",\n    \"cpu\": \"Intel i7\",\n    \"gpu\": \"RTX 3060\"\n  },\n  \"trialDays\": 7\n}"
+        },
+        "url": {
+          "raw": "{{adminBaseUrl}}/createClient",
+          "host": [
+            "{{adminBaseUrl}}"
+          ],
+          "path": [
+            "createClient"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Revoke Trial",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{adminIdToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"deviceId\": \"{{deviceId}}\"\n}"
+        },
+        "url": {
+          "raw": "{{adminBaseUrl}}/revokeTrial",
+          "host": [
+            "{{adminBaseUrl}}"
+          ],
+          "path": [
+            "revokeTrial"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Extend Trial",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{adminIdToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"deviceId\": \"{{deviceId}}\",\n  \"extendDays\": 7\n}"
+        },
+        "url": {
+          "raw": "{{adminBaseUrl}}/extendTrial",
+          "host": [
+            "{{adminBaseUrl}}"
+          ],
+          "path": [
+            "extendTrial"
+          ]
+        }
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "adminBaseUrl",
+      "value": "https://us-central1-YOUR_PROJECT_ID.cloudfunctions.net/adminApi"
+    },
+    {
+      "key": "adminIdToken",
+      "value": ""
+    },
+    {
+      "key": "deviceId",
+      "value": "device-admin-test-1"
+    }
+  ]
+}

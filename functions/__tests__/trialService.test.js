@@ -24,7 +24,16 @@ jest.mock("../firebase", () => ({
 const jwt = require("jsonwebtoken");
 const { v4: uuidv4 } = require("uuid");
 const { db } = require("../firebase");
-const { CODES, TrialServiceError, startTrial, verifyTrial } = require("../trialService");
+const {
+  CODES,
+  TrialServiceError,
+  adminCreateClient,
+  adminExtendTrial,
+  adminListClients,
+  adminRevokeTrial,
+  startTrial,
+  verifyTrial,
+} = require("../trialService");
 
 describe("trialService.startTrial", () => {
   let createMock;
@@ -192,5 +201,111 @@ describe("trialService.verifyTrial", () => {
       statusCode: CODES.INVALID_TOKEN,
       error: "INVALID_TOKEN",
     });
+  });
+});
+
+describe("trialService.admin actions", () => {
+  let getMock;
+  let createMock;
+  let updateMock;
+  let querySnapshotMock;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    getMock = jest.fn();
+    createMock = jest.fn().mockResolvedValue(undefined);
+    updateMock = jest.fn().mockResolvedValue(undefined);
+    querySnapshotMock = {
+      docs: [],
+    };
+    const collectionApi = {
+      doc: jest.fn().mockReturnValue({
+        get: getMock,
+        create: createMock,
+        update: updateMock,
+      }),
+      orderBy: jest.fn().mockReturnThis(),
+      limit: jest.fn().mockReturnThis(),
+      get: jest.fn().mockResolvedValue(querySnapshotMock),
+    };
+    db.collection.mockReturnValue(collectionApi);
+    uuidv4.mockReturnValue("admin-token-id");
+    jwt.sign.mockReturnValue("admin-created-token");
+  });
+
+  it("adminCreateClient returns success contract with token", async () => {
+    const response = await adminCreateClient(
+      {
+        deviceId: "device-new",
+        systemInfo: { os: "Windows", cpu: "Intel", gpu: "RTX" },
+        trialDays: 10,
+      },
+      {
+        jwtSecret: "secret",
+        ip: "1.2.3.4",
+      }
+    );
+
+    expect(response).toEqual({
+      message: "Client added and trial created",
+      token: "admin-created-token",
+      statusCode: CODES.ADMIN_CLIENT_CREATED,
+      error: null,
+    });
+  });
+
+  it("adminRevokeTrial updates trial and returns success", async () => {
+    getMock.mockResolvedValue({
+      exists: true,
+      data: () => ({ trialEnd: Date.now() + 10000 }),
+    });
+
+    const response = await adminRevokeTrial({ deviceId: "device-1" });
+
+    expect(updateMock).toHaveBeenCalled();
+    expect(response).toEqual({
+      message: "Trial revoked successfully",
+      token: "",
+      statusCode: CODES.ADMIN_TRIAL_REVOKED,
+      error: null,
+    });
+  });
+
+  it("adminExtendTrial extends trial and returns success", async () => {
+    getMock.mockResolvedValue({
+      exists: true,
+      data: () => ({ trialEnd: Date.now() + 10000 }),
+    });
+
+    const response = await adminExtendTrial({ deviceId: "device-1", extendDays: 7 });
+
+    expect(updateMock).toHaveBeenCalled();
+    expect(response).toEqual({
+      message: "Trial extended successfully",
+      token: "",
+      statusCode: CODES.ADMIN_TRIAL_EXTENDED,
+      error: null,
+    });
+  });
+
+  it("adminListClients returns mapped client rows", async () => {
+    querySnapshotMock.docs = [
+      {
+        id: "device-1",
+        data: () => ({
+          deviceId: "device-1",
+          trialStart: 1,
+          trialEnd: Date.now() + 10000,
+          systemInfo: { os: "Windows" },
+          revoked: false,
+        }),
+      },
+    ];
+
+    const response = await adminListClients({ limit: 20, search: "device" });
+
+    expect(response.statusCode).toBe(CODES.ADMIN_CLIENTS_LISTED);
+    expect(Array.isArray(response.clients)).toBe(true);
+    expect(response.clients[0].deviceId).toBe("device-1");
   });
 });

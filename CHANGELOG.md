@@ -133,3 +133,64 @@
   - `postman/Trial-Licensing.postman_collection.json`
   - `postman/Trial-Licensing-Local.postman_environment.json`
 - Updated `README.md` with new response contract, status-code reference, and verify behavior documentation.
+
+### Added
+
+- Added secure admin API capabilities in backend:
+  - `POST /adminApi/createClient` (add client + create trial)
+  - `POST /adminApi/revokeTrial` (revoke trial immediately)
+  - `POST /adminApi/extendTrial` (extend trial by days)
+- Added Firebase Auth admin middleware in `functions/index.js`:
+  - Validates bearer token via `admin.auth().verifyIdToken`
+  - Requires custom claim `admin: true`
+  - Returns standardized 4030/4031 responses for unauthorized/forbidden requests
+- Added admin service operations and validation in `functions/trialService.js`:
+  - `adminCreateClient`
+  - `adminRevokeTrial`
+  - `adminExtendTrial`
+  - New status codes for admin workflows (`1100`, `1101`, `1102`) and related validation/auth errors
+- Added lightweight web admin panel:
+  - `admin-panel/index.html`
+  - `admin-panel/app.js`
+  - `admin-panel/styles.css`
+  - Supports login, add client, revoke trial, extend trial, and response display
+- Added Admin Postman collection:
+  - `postman/Admin-Trial-Licensing.postman_collection.json`
+  - Covers create client, revoke trial, and extend trial with admin bearer token
+- Expanded tests:
+  - Updated `functions/__tests__/index.test.js` to include admin route handling
+  - Updated `functions/__tests__/trialService.test.js` to cover admin service actions
+  - Test status: all suites passing
+- Updated `README.md` with admin API docs, auth requirements, admin-claim setup, and admin panel setup instructions.
+
+### Updated
+
+- Added new admin endpoint: `POST /adminApi/listClients`
+  - Returns standardized response plus `clients` array for management UI.
+  - Supports optional `limit` and `search` filter.
+- Enhanced admin panel UI to include registered clients management:
+  - Replaced placeholder hosting page with full admin interface (`admin-panel/index.html`).
+  - Added clients table view with status/system/trial info.
+  - Added refresh/search and row-level actions:
+    - `+7d` extend
+    - `Revoke`
+  - Integrated list refresh after create/revoke/extend actions.
+- Updated backend and tests:
+  - `functions/index.js` wired `/adminApi/listClients`
+  - `functions/trialService.js` added `adminListClients` and status code `1103`
+  - `functions/__tests__/index.test.js` added list-clients route assertion
+  - `functions/__tests__/trialService.test.js` added list-clients service assertion
+- Updated `README.md` with `listClients` contract and admin panel client-list usage.
+
+### Added
+
+- Added helper script to manage Firebase admin custom claims:
+  - `functions/scripts/setAdminClaim.js`
+  - Supports:
+    - set admin by UID (`--uid`)
+    - set admin by email (`--email`)
+    - remove admin claim (`--remove true`)
+- Added npm script alias:
+  - `npm run set-admin-claim -- --uid <FIREBASE_UID>`
+- Updated `README.md` with copy-paste admin-claim commands.
+- Fixed argument parser in `setAdminClaim.js` to avoid hanging on flag-only options (e.g. `--help`).
