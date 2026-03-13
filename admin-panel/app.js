@@ -14,6 +14,12 @@ const firebaseConfig = {
 };
 
 const ADMIN_API_BASE = "https://us-central1-licence-registration-1c9ac.cloudfunctions.net/adminApi";
+const INACTIVITY_LOGOUT_MS = 30 * 60 * 1000;
+const ACTIVITY_RESET_THROTTLE_MS = 4000;
+const WALLPAPER_CACHE_DATE_KEY = "admin_wallpaper_date";
+const WALLPAPER_CACHE_URL_KEY = "admin_wallpaper_url";
+const UNSPLASH_RANDOM_URL =
+  "https://api.unsplash.com/photos/random?query=space%20wallpaper&orientation=landscape&client_id=15MDKvUVv4HMJ3DzyeRIwxCFvEB70QeNcKzOCX_Puf0";
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
@@ -36,17 +42,23 @@ const refreshBtn = document.getElementById("refreshBtn");
 const refreshProjectsBtn = document.getElementById("refreshProjectsBtn");
 const logoutBtn = document.getElementById("logoutBtn");
 const serverTimeText = document.getElementById("serverTimeText");
+const appShell = document.querySelector(".app-shell");
 
 let selectedProjectId = "";
 let cachedProjects = [];
 let feedbackTimeout = null;
 let serverTimeOffsetMs = 0;
 let serverClockTimer = null;
+let inactivityTimer = null;
+let lastActivityResetAt = 0;
+let wallpaperTimer = null;
 
 function showFeedback(type, message, persist = false) {
   feedbackBar.textContent = message;
-  feedbackBar.classList.remove("hidden", "success", "error", "info", "warning");
+  feedbackBar.classList.remove("hidden", "success", "error", "info", "warning", "hide");
   feedbackBar.classList.add(type);
+  void feedbackBar.offsetWidth;
+  feedbackBar.classList.add("show");
 
   if (feedbackTimeout) {
     clearTimeout(feedbackTimeout);
@@ -55,9 +67,137 @@ function showFeedback(type, message, persist = false) {
 
   if (!persist) {
     feedbackTimeout = setTimeout(() => {
-      feedbackBar.classList.add("hidden");
+      hideFeedback();
     }, 4200);
   }
+}
+
+function hideFeedback() {
+  feedbackBar.classList.remove("show");
+  feedbackBar.classList.add("hide");
+  setTimeout(() => {
+    if (!feedbackBar.classList.contains("show")) {
+      feedbackBar.classList.add("hidden");
+    }
+  }, 260);
+}
+
+function clearInactivityTimer() {
+  if (inactivityTimer) {
+    clearTimeout(inactivityTimer);
+    inactivityTimer = null;
+  }
+}
+
+function armInactivityLogout() {
+  clearInactivityTimer();
+  if (!auth.currentUser) {
+    return;
+  }
+
+  inactivityTimer = setTimeout(async () => {
+    try {
+      await signOut(auth);
+      showFeedback("warning", "You were logged out after 30 minutes of inactivity.");
+    } catch (error) {
+      showFeedback("error", `Auto-logout failed: ${error.message}`, true);
+    }
+  }, INACTIVITY_LOGOUT_MS);
+}
+
+function recordActivity() {
+  if (!auth.currentUser) {
+    return;
+  }
+
+  const now = Date.now();
+  if (now - lastActivityResetAt < ACTIVITY_RESET_THROTTLE_MS) {
+    return;
+  }
+  lastActivityResetAt = now;
+  armInactivityLogout();
+}
+
+function bindInactivityWatch() {
+  const events = ["click", "keydown", "mousemove", "scroll", "touchstart"];
+  for (const eventName of events) {
+    window.addEventListener(eventName, recordActivity);
+  }
+}
+
+function bindBackgroundRipple() {
+  window.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) {
+      return;
+    }
+
+    // Skip interactive controls; ripple only for panel/background clicks.
+    if (target.closest("button, input, select, textarea, summary, a, label")) {
+      return;
+    }
+
+    const ripple = document.createElement("span");
+    ripple.className = "ripple";
+    ripple.style.left = `${event.clientX}px`;
+    ripple.style.top = `${event.clientY}px`;
+    document.body.appendChild(ripple);
+    setTimeout(() => ripple.remove(), 700);
+  });
+}
+
+function getTodayStamp() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function setWallpaper(url) {
+  if (!url) {
+    return;
+  }
+  document.documentElement.style.setProperty("--wallpaper-image", `url("${url}")`);
+}
+
+async function refreshDailyWallpaper(force = false) {
+  const today = getTodayStamp();
+  const cachedDate = localStorage.getItem(WALLPAPER_CACHE_DATE_KEY);
+  const cachedUrl = localStorage.getItem(WALLPAPER_CACHE_URL_KEY);
+
+  if (!force && cachedDate === today && cachedUrl) {
+    setWallpaper(cachedUrl);
+    return;
+  }
+
+  try {
+    const response = await fetch(UNSPLASH_RANDOM_URL, { method: "GET" });
+    if (!response.ok) {
+      throw new Error("Unsplash request failed");
+    }
+
+    const data = await response.json();
+    const pickedUrl = data?.urls?.full || data?.urls?.regular || data?.urls?.raw || "";
+    if (!pickedUrl) {
+      throw new Error("No wallpaper URL in Unsplash response");
+    }
+
+    setWallpaper(pickedUrl);
+    localStorage.setItem(WALLPAPER_CACHE_DATE_KEY, today);
+    localStorage.setItem(WALLPAPER_CACHE_URL_KEY, pickedUrl);
+  } catch (_) {
+    if (cachedUrl) {
+      setWallpaper(cachedUrl);
+    }
+  }
+}
+
+function startWallpaperRotation() {
+  if (wallpaperTimer) {
+    clearInterval(wallpaperTimer);
+  }
+
+  refreshDailyWallpaper();
+  wallpaperTimer = setInterval(() => {
+    refreshDailyWallpaper();
+  }, 60 * 60 * 1000);
 }
 
 function formatDate(ms) {
@@ -263,6 +403,7 @@ async function callAdmin(method, endpoint, body = null) {
     throw new Error(json.message || json.error || "Request failed");
   }
 
+  recordActivity();
   return json;
 }
 
@@ -501,6 +642,7 @@ searchInput.addEventListener("keyup", async (event) => {
 
 onAuthStateChanged(auth, async (user) => {
   const isLoggedIn = Boolean(user);
+  appShell.classList.toggle("logged-out", !isLoggedIn);
 
   authCard.classList.toggle("hidden", isLoggedIn);
   panelCard.classList.toggle("hidden", !isLoggedIn);
@@ -508,6 +650,7 @@ onAuthStateChanged(auth, async (user) => {
   logoutBtn.classList.toggle("hidden", !isLoggedIn);
 
   if (!isLoggedIn) {
+    clearInactivityTimer();
     selectedProjectId = "";
     cachedProjects = [];
     renderProjectSelector([]);
@@ -516,6 +659,7 @@ onAuthStateChanged(auth, async (user) => {
   }
 
   try {
+    armInactivityLogout();
     showFeedback("info", "Loading projects and clients...");
     await loadProjects();
     if (selectedProjectId) {
@@ -528,3 +672,6 @@ onAuthStateChanged(auth, async (user) => {
 });
 
 startServerClock();
+bindInactivityWatch();
+startWallpaperRotation();
+bindBackgroundRipple();

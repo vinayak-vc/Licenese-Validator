@@ -1,4 +1,5 @@
 :root {
+  --wallpaper-image: none;
   --bg: #060a12;
   --bg-2: #0b1220;
   --panel: #111a2e;
@@ -25,12 +26,46 @@ body {
 }
 
 body {
+  position: relative;
+  isolation: isolate;
   font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
   color: var(--text);
+  background: linear-gradient(165deg, var(--bg) 0%, var(--bg-2) 100%);
+}
+
+body::before,
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
+
+body::before {
+  z-index: -2;
+  background-image: var(--wallpaper-image);
+  background-size: cover;
+  background-position: center;
+  transform: scale(1.04);
+  filter: brightness(0.38) saturate(1.1);
+  animation: wallpaper-drift 80s ease-in-out infinite alternate;
+}
+
+body::after {
+  z-index: -1;
   background:
-    radial-gradient(circle at 10% -10%, rgba(73, 122, 214, 0.3), transparent 33%),
-    radial-gradient(circle at 90% -10%, rgba(52, 147, 219, 0.22), transparent 38%),
-    linear-gradient(165deg, var(--bg) 0%, var(--bg-2) 100%);
+    radial-gradient(circle at 10% -10%, rgba(73, 122, 214, 0.34), transparent 33%),
+    radial-gradient(circle at 90% -10%, rgba(52, 147, 219, 0.24), transparent 38%),
+    linear-gradient(165deg, rgba(5, 9, 16, 0.68) 0%, rgba(11, 18, 32, 0.78) 100%);
+}
+
+@keyframes wallpaper-drift {
+  0% {
+    transform: scale(1.04) translate3d(0, 0, 0);
+  }
+  100% {
+    transform: scale(1.08) translate3d(-0.8%, -1%, 0);
+  }
 }
 
 .app-shell {
@@ -43,14 +78,17 @@ body {
 
 .title-bar {
   position: relative;
-  border: 1px solid var(--border);
+  border: 1px solid rgba(169, 201, 255, 0.22);
   border-radius: 14px;
-  background: linear-gradient(180deg, rgba(17, 27, 45, 0.92), rgba(10, 17, 30, 0.95));
+  background: linear-gradient(180deg, rgba(26, 39, 63, 0.48), rgba(12, 20, 34, 0.38));
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
   padding: 0.75rem 1rem;
   min-height: 72px;
   display: flex;
   align-items: center;
   justify-content: center;
+  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
 .title-center {
@@ -75,22 +113,32 @@ body {
 }
 
 .feedback {
-  border: 1px solid var(--border);
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 999;
+  width: min(420px, calc(100% - 1.5rem));
+  border: 1px solid rgba(160, 192, 252, 0.24);
   border-left-width: 4px;
   border-radius: 10px;
   padding: 0.55rem 0.8rem;
-  background: rgba(14, 24, 40, 0.92);
+  background: rgba(15, 25, 42, 0.52);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
   font-weight: 600;
-  transform: translateY(-6px);
+  transform: translateX(120%);
   opacity: 0;
-  animation: feedback-in 180ms ease forwards;
+  transition: transform 240ms ease, opacity 240ms ease;
 }
 
-@keyframes feedback-in {
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
+.feedback.show {
+  transform: translateX(0);
+  opacity: 1;
+}
+
+.feedback.hide {
+  transform: translateX(120%);
+  opacity: 0;
 }
 
 .feedback.info {
@@ -130,10 +178,12 @@ body {
 }
 
 .card {
-  border: 1px solid var(--border);
+  border: 1px solid rgba(160, 198, 255, 0.18);
   border-radius: 14px;
-  background: linear-gradient(180deg, rgba(18, 30, 51, 0.95), rgba(13, 23, 40, 0.96));
-  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.23);
+  background: linear-gradient(180deg, rgba(21, 34, 57, 0.52), rgba(11, 21, 37, 0.46));
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.23), inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 .login-card,
@@ -147,6 +197,11 @@ body {
   padding: 0.95rem;
 }
 
+.login-card {
+  max-width: 560px;
+  width: 100%;
+}
+
 #panelCard {
   display: flex;
   flex-direction: column;
@@ -156,10 +211,12 @@ body {
 }
 
 .selected-project {
-  border: 1px solid var(--border);
+  border: 1px solid rgba(167, 203, 255, 0.2);
   border-radius: 10px;
   padding: 0.62rem 0.7rem;
-  background: rgba(21, 33, 54, 0.75);
+  background: rgba(24, 39, 63, 0.4);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 .selected-label {
@@ -185,27 +242,24 @@ body {
   min-height: 0;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-auto-rows: min-content;
   gap: 0.55rem;
   overflow: auto;
   padding-right: 0.22rem;
 }
 
-#createProjectPanel,
-#selectProjectPanel,
-#addClientPanel {
-  grid-column: 1;
-}
-
-#extendPanel,
-#revokePanel {
-  grid-column: 2;
+.actions-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  align-self: start;
 }
 
 .panel-block {
-  border: 1px solid var(--border);
+  border: 1px solid rgba(161, 197, 255, 0.17);
   border-radius: 10px;
-  background: rgba(16, 27, 45, 0.83);
+  background: rgba(13, 24, 42, 0.44);
+  backdrop-filter: blur(12px) saturate(135%);
+  -webkit-backdrop-filter: blur(12px) saturate(135%);
   overflow: hidden;
   transition: border-color 160ms ease, transform 160ms ease;
 }
@@ -273,7 +327,7 @@ select {
   padding: 0.58rem 0.65rem;
   border-radius: 8px;
   border: 1px solid #344a6d;
-  background: #0b1527;
+  background: #081120;
   color: var(--text);
 }
 
@@ -355,10 +409,12 @@ button.small {
 }
 
 .client-card {
-  border: 1px solid var(--border);
+  border: 1px solid rgba(160, 194, 250, 0.16);
   border-radius: 10px;
   margin-bottom: 0.55rem;
-  background: rgba(14, 24, 40, 0.9);
+  background: rgba(13, 24, 41, 0.45);
+  backdrop-filter: blur(12px) saturate(130%);
+  -webkit-backdrop-filter: blur(12px) saturate(130%);
 }
 
 .client-card > summary {
@@ -454,16 +510,62 @@ button.small {
 
 .status-bar {
   align-self: end;
-  border: 1px solid var(--border);
+  border: 1px solid rgba(156, 192, 248, 0.22);
   border-radius: 10px;
-  background: rgba(12, 20, 34, 0.9);
+  background: rgba(12, 20, 34, 0.5);
+  backdrop-filter: blur(14px) saturate(135%);
+  -webkit-backdrop-filter: blur(14px) saturate(135%);
   padding: 0.42rem 0.65rem;
   width: fit-content;
   min-width: 220px;
 }
 
+.app-shell.logged-out .workspace {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.app-shell.logged-out .left-pane {
+  width: 100%;
+  max-width: 620px;
+  display: flex;
+  justify-content: center;
+}
+
+.app-shell.logged-out .right-pane {
+  display: none;
+}
+
+.app-shell.logged-out .status-bar {
+  justify-self: start;
+}
+
 .hidden {
   display: none !important;
+}
+
+.ripple {
+  position: fixed;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  pointer-events: none;
+  z-index: 4;
+  background: radial-gradient(circle, rgba(120, 190, 255, 0.4) 0%, rgba(120, 190, 255, 0.12) 45%, rgba(120, 190, 255, 0) 70%);
+  transform: translate(-50%, -50%) scale(0);
+  animation: ripple-pop 620ms ease-out forwards;
+}
+
+@keyframes ripple-pop {
+  0% {
+    opacity: 0.75;
+    transform: translate(-50%, -50%) scale(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(22);
+  }
 }
 
 @media (max-width: 1200px) {

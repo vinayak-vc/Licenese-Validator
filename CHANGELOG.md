@@ -316,3 +316,42 @@
   - Whole page scrolling disabled; internal sections handle overflow.
   - Server time now syncs from response `Date` header and updates live.
 
+### Updated
+
+- Fixed left-panel column behavior so action blocks are truly independent:
+  - `Extend Trial` and `Revoke Trial` no longer shift vertically when left-column panels expand.
+  - Replaced single grid auto-placement with two explicit stacked action columns.
+- Improved logged-out/login layout:
+  - Login view now shows only title section and centered Admin Login panel.
+  - Right-side workspace is hidden when logged out.
+  - Login/input fields retain dark theme styling.
+
+### Updated
+
+- Feedback/toast behavior improved:
+  - Converted inline feedback messages to floating popup toasts.
+  - Toasts now slide in from outside the screen and slide out without shifting page layout.
+- Session management hardening:
+  - Added automatic logout after 30 minutes of no user activity.
+  - Inactivity timer resets on user actions (click, key press, mouse move, scroll, touch) and successful API calls.
+
+### Updated
+
+- Added dynamic daily space wallpaper support in admin panel:
+  - Integrates Unsplash random-photo API with provided `client_id`.
+  - Caches wallpaper URL by date in `localStorage`.
+  - Auto-rotates once per day and applies on startup.
+- Added glass/liquid UI treatment across panel surfaces:
+  - Title bar, cards, action panels, client cards, status bar, and toast now use translucent layers with blur/backdrop effects.
+  - Background now combines wallpaper + atmospheric overlays + slow drift animation for space-themed depth.
+
+### Updated
+
+- Toast interaction update:
+  - Notification toasts now appear at bottom-right with padding from edges.
+  - Toast animation changed to horizontal slide-in / slide-out from screen edge.
+- Added background ripple interaction:
+  - Clicking non-interactive panel/background areas now triggers a ripple effect.
+  - Ripple excludes form controls and action buttons to avoid UX noise.
+
+
