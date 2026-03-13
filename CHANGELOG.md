@@ -223,3 +223,19 @@
 - Added project-level status codes (`1200`, `1201`, `1202`) and project validation codes (`4014`, `7009`).
 - Updated test suites for multi-project flow and project APIs.
 - Updated `README.md` with new data model, endpoint contracts, and request examples.
+
+- Refreshed Postman collections for project-scoped licensing flow:
+  - `postman/Trial-Licensing.postman_collection.json`
+  - Added `projectApiKey` in `startTrial` and `verifyTrial` requests
+  - Added first-run verify request template with empty token
+- Expanded admin Postman coverage:
+  - `postman/Admin-Trial-Licensing.postman_collection.json`
+  - Added project lifecycle requests:
+    - create project
+    - list projects
+    - list clients by project (GET and POST variants)
+  - Updated client admin operations to include `projectId`
+  - Added test script in create-project request to auto-capture `projectId` and `projectApiKey`
+- Updated local Postman environment:
+  - `postman/Trial-Licensing-Local.postman_environment.json`
+  - Added `adminBaseUrl`, `projectApiKey`, `projectId`, and `adminIdToken` variables

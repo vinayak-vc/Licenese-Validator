@@ -2,7 +2,7 @@
   "info": {
     "name": "Trial Licensing System",
     "_postman_id": "8f7a3f2d-2f6b-4fc8-b5e5-4f9a7cc6f6c1",
-    "description": "Postman collection for Start Trial and Verify Trial APIs.",
+    "description": "Postman collection for project-scoped Start Trial and Verify Trial APIs.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -18,7 +18,7 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"deviceId\": \"{{deviceId}}\",\n  \"systemInfo\": {\n    \"os\": \"{{os}}\",\n    \"cpu\": \"{{cpu}}\",\n    \"gpu\": \"{{gpu}}\"\n  }\n}"
+          "raw": "{\n  \"projectApiKey\": \"{{projectApiKey}}\",\n  \"deviceId\": \"{{deviceId}}\",\n  \"systemInfo\": {\n    \"os\": \"{{os}}\",\n    \"cpu\": \"{{cpu}}\",\n    \"gpu\": \"{{gpu}}\"\n  }\n}"
         },
         "url": {
           "raw": "{{baseUrl}}/startTrial",
@@ -29,7 +29,7 @@
             "startTrial"
           ]
         },
-        "description": "Starts a new 7-day trial for a device. If trial already exists for this deviceId, returns conflict."
+        "description": "Starts a new trial for a device inside the project resolved from projectApiKey."
       },
       "event": [
         {
@@ -86,7 +86,7 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"token\": \"{{token}}\",\n  \"deviceId\": \"{{deviceId}}\"\n}"
+          "raw": "{\n  \"projectApiKey\": \"{{projectApiKey}}\",\n  \"token\": \"{{token}}\",\n  \"deviceId\": \"{{deviceId}}\"\n}"
         },
         "url": {
           "raw": "{{baseUrl}}/verifyTrial",
@@ -97,7 +97,7 @@
             "verifyTrial"
           ]
         },
-        "description": "Verifies token and device validity against Firestore trial record and server time."
+        "description": "Verifies project-scoped token/device validity against server state."
       },
       "event": [
         {
@@ -121,7 +121,7 @@
       ]
     },
     {
-      "name": "3) Verify Trial (Invalid Token Demo)",
+      "name": "3) Verify Trial (First Run - No Token)",
       "request": {
         "method": "POST",
         "header": [
@@ -132,7 +132,32 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"token\": \"invalid.token.value\",\n  \"deviceId\": \"{{deviceId}}\"\n}"
+          "raw": "{\n  \"projectApiKey\": \"{{projectApiKey}}\",\n  \"token\": \"\",\n  \"deviceId\": \"{{deviceId}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/verifyTrial",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "verifyTrial"
+          ]
+        }
+      }
+    },
+    {
+      "name": "4) Verify Trial (Invalid Token Demo)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"projectApiKey\": \"{{projectApiKey}}\",\n  \"token\": \"invalid.token.value\",\n  \"deviceId\": \"{{deviceId}}\"\n}"
         },
         "url": {
           "raw": "{{baseUrl}}/verifyTrial",
@@ -150,7 +175,7 @@
           "script": {
             "type": "text/javascript",
             "exec": [
-              "pm.test('Status is 200 with valid=false', function () {",
+              "pm.test('Status is 200 with invalid token code', function () {",
               "  pm.response.to.have.status(200);",
               "  const json = pm.response.json();",
               "  pm.expect(json.statusCode).to.eql(7001);",
@@ -166,6 +191,10 @@
     {
       "key": "baseUrl",
       "value": "https://us-central1-YOUR_PROJECT_ID.cloudfunctions.net"
+    },
+    {
+      "key": "projectApiKey",
+      "value": "REPLACE_PROJECT_API_KEY"
     },
     {
       "key": "deviceId",

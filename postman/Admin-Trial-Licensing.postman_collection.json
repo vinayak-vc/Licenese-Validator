@@ -2,12 +2,12 @@
   "info": {
     "name": "Trial Licensing Admin API",
     "_postman_id": "2c0d5d4f-3c1a-4fc4-9f80-3d2fcedf9099",
-    "description": "Admin endpoints for creating, revoking, and extending trials.",
+    "description": "Admin endpoints for project and client lifecycle management.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
     {
-      "name": "Create Client Trial",
+      "name": "1) Create Project",
       "request": {
         "method": "POST",
         "header": [
@@ -22,7 +22,76 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"deviceId\": \"{{deviceId}}\",\n  \"systemInfo\": {\n    \"os\": \"Windows 11\",\n    \"cpu\": \"Intel i7\",\n    \"gpu\": \"RTX 3060\"\n  },\n  \"trialDays\": 7\n}"
+          "raw": "{\n  \"name\": \"{{projectName}}\",\n  \"description\": \"{{projectDescription}}\"\n}"
+        },
+        "url": {
+          "raw": "{{adminBaseUrl}}/createProject",
+          "host": [
+            "{{adminBaseUrl}}"
+          ],
+          "path": [
+            "createProject"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Project created', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const json = pm.response.json();",
+              "  pm.expect(json.statusCode).to.eql(1200);",
+              "  if (json.project) {",
+              "    pm.collectionVariables.set('projectId', json.project.projectId || '');",
+              "    pm.collectionVariables.set('projectApiKey', json.project.projectApiKey || '');",
+              "  }",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2) List Projects",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{adminIdToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{adminBaseUrl}}/projects",
+          "host": [
+            "{{adminBaseUrl}}"
+          ],
+          "path": [
+            "projects"
+          ]
+        }
+      }
+    },
+    {
+      "name": "3) Create Client Trial",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{adminIdToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"projectId\": \"{{projectId}}\",\n  \"deviceId\": \"{{deviceId}}\",\n  \"systemInfo\": {\n    \"os\": \"Windows 11\",\n    \"cpu\": \"Intel i7\",\n    \"gpu\": \"RTX 3060\"\n  },\n  \"trialDays\": 7\n}"
         },
         "url": {
           "raw": "{{adminBaseUrl}}/createClient",
@@ -36,7 +105,40 @@
       }
     },
     {
-      "name": "Revoke Trial",
+      "name": "4) List Clients By Project (GET)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{adminIdToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{adminBaseUrl}}/projects/{{projectId}}/clients?limit=200&search=",
+          "host": [
+            "{{adminBaseUrl}}"
+          ],
+          "path": [
+            "projects",
+            "{{projectId}}",
+            "clients"
+          ],
+          "query": [
+            {
+              "key": "limit",
+              "value": "200"
+            },
+            {
+              "key": "search",
+              "value": ""
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "5) List Clients By Project (POST)",
       "request": {
         "method": "POST",
         "header": [
@@ -51,7 +153,36 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"deviceId\": \"{{deviceId}}\"\n}"
+          "raw": "{\n  \"projectId\": \"{{projectId}}\",\n  \"limit\": 200,\n  \"search\": \"\"\n}"
+        },
+        "url": {
+          "raw": "{{adminBaseUrl}}/listClients",
+          "host": [
+            "{{adminBaseUrl}}"
+          ],
+          "path": [
+            "listClients"
+          ]
+        }
+      }
+    },
+    {
+      "name": "6) Revoke Trial",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{adminIdToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"projectId\": \"{{projectId}}\",\n  \"deviceId\": \"{{deviceId}}\"\n}"
         },
         "url": {
           "raw": "{{adminBaseUrl}}/revokeTrial",
@@ -65,7 +196,7 @@
       }
     },
     {
-      "name": "Extend Trial",
+      "name": "7) Extend Trial",
       "request": {
         "method": "POST",
         "header": [
@@ -80,7 +211,7 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"deviceId\": \"{{deviceId}}\",\n  \"extendDays\": 7\n}"
+          "raw": "{\n  \"projectId\": \"{{projectId}}\",\n  \"deviceId\": \"{{deviceId}}\",\n  \"extendDays\": 7\n}"
         },
         "url": {
           "raw": "{{adminBaseUrl}}/extendTrial",
@@ -102,6 +233,22 @@
     {
       "key": "adminIdToken",
       "value": ""
+    },
+    {
+      "key": "projectId",
+      "value": ""
+    },
+    {
+      "key": "projectApiKey",
+      "value": ""
+    },
+    {
+      "key": "projectName",
+      "value": "Mining Simulator"
+    },
+    {
+      "key": "projectDescription",
+      "value": "Trial licensing for mining simulator"
     },
     {
       "key": "deviceId",
