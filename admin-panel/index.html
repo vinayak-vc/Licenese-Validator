@@ -8,8 +8,11 @@
   </head>
   <body>
     <main class="container">
-      <h1>Trial Licensing Admin</h1>
-      <p class="muted">Manage clients, revoke trials, and extend access.</p>
+      <div class="hero">
+        <h1>Trial Licensing Admin</h1>
+        <p class="muted">Manage projects, clients, revocations, and extensions from one panel.</p>
+      </div>
+      <div id="feedbackBar" class="feedback hidden" role="status" aria-live="polite"></div>
 
       <section class="card" id="authCard">
         <h2>Admin Login</h2>
@@ -38,12 +41,12 @@
           <div class="form-block">
             <h3>Select Project</h3>
             <select id="projectSelect"></select>
-            <button id="refreshProjectsBtn" type="button">Refresh Projects</button>
+            <button id="refreshProjectsBtn" type="button" class="secondary">Refresh Projects</button>
             <p id="selectedProjectInfo" class="muted">No project selected.</p>
             <label>Project API Key</label>
             <div class="inline-actions">
               <input id="projectApiKeyField" readonly placeholder="Project API key will appear here" />
-              <button id="copyProjectApiKeyBtn" type="button">Copy</button>
+              <button id="copyProjectApiKeyBtn" type="button" class="secondary">Copy</button>
             </div>
             <p id="projectApiKeyHint" class="muted"></p>
           </div>
@@ -78,7 +81,7 @@
           <h2>Registered Clients</h2>
           <div class="inline-actions">
             <input id="searchInput" placeholder="Search deviceId..." />
-            <button id="refreshBtn">Refresh</button>
+            <button id="refreshBtn" class="secondary">Refresh</button>
           </div>
         </div>
 
@@ -93,17 +96,16 @@
                 <th>Actions</th>
               </tr>
             </thead>
-            <tbody id="clientsTableBody"></tbody>
+            <tbody id="clientsTableBody">
+              <tr>
+                <td colspan="5" class="empty-row">Login to load clients.</td>
+              </tr>
+            </tbody>
           </table>
         </div>
-      </section>
-
-      <section class="card">
-        <h2>API Response</h2>
-        <pre id="output">{}</pre>
       </section>
     </main>
 
     <script type="module" src="./app.js"></script>
   </body>
-  </html>
+</html>

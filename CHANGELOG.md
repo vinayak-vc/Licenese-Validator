@@ -281,3 +281,17 @@
 - Documentation updates:
   - `README.md` and `docs/ADMIN_DEVELOPER_SYSTEM_GUIDE.md` examples now show `statusCode` as string.
 
+### Updated
+
+- Improved Admin Panel UX and visual design:
+  - Applied full dark theme styling in `admin-panel/styles.css`.
+  - Removed raw API response panel from `admin-panel/index.html`.
+  - Added global visual feedback bar (info/success/warning/error states).
+  - Added loading/disabled button states for login, refresh, create, extend, and revoke actions.
+  - Added status pills in clients table for clearer active/expired/revoked visibility.
+  - Improved empty-state messaging and responsive layout behavior for mobile screens.
+- Refactored `admin-panel/app.js`:
+  - Removed `renderResponse` / raw JSON output flow.
+  - Added centralized feedback handling and better API error surfacing for operators.
+  - Added action-level success/error messaging after each operation.
+
