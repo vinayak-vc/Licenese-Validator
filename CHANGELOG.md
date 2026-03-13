@@ -205,3 +205,21 @@
   - `message: "Malformed JSON body"`
 - Added regression test in `functions/__tests__/index.test.js` to verify malformed JSON behavior.
 - Updated `README.md` with `4005` status code reference.
+
+### Updated
+
+- Refactored backend to multi-project licensing model:
+  - New collections: `projects` and `clients`
+  - `clients` are project-scoped via doc id `${projectId}__${deviceId}`
+- Updated trial APIs to require `projectApiKey`:
+  - `startTrial` resolves `projectApiKey -> projectId`
+  - `verifyTrial` enforces project-scoped token and client validation
+- Added project isolation in JWT payload (`projectId`, `deviceId`, `tokenId`) to prevent cross-project token reuse.
+- Added admin project APIs:
+  - `POST /adminApi/createProject`
+  - `GET /adminApi/projects`
+  - `GET /adminApi/projects/{projectId}/clients`
+- Updated admin client APIs to be project-aware (`projectId` required for create/revoke/extend/list).
+- Added project-level status codes (`1200`, `1201`, `1202`) and project validation codes (`4014`, `7009`).
+- Updated test suites for multi-project flow and project APIs.
+- Updated `README.md` with new data model, endpoint contracts, and request examples.

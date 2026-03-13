@@ -9,8 +9,11 @@ const {
   TrialServiceError,
   responseBody,
   adminCreateClient,
+  adminCreateProject,
   adminExtendTrial,
   adminListClients,
+  adminListProjectClients,
+  adminListProjects,
   adminRevokeTrial,
   startTrial,
   verifyTrial,
@@ -196,6 +199,17 @@ adminApp.post("/createClient", async (req, res) => {
   }
 });
 
+adminApp.post("/createProject", async (req, res) => {
+  try {
+    const result = await adminCreateProject(req.body, {
+      adminUser: req.adminUser,
+    });
+    return res.status(200).json(result);
+  } catch (error) {
+    return sendError(res, error);
+  }
+});
+
 adminApp.post("/revokeTrial", async (req, res) => {
   try {
     const result = await adminRevokeTrial(req.body, {
@@ -222,6 +236,29 @@ adminApp.post("/listClients", async (req, res) => {
   try {
     const result = await adminListClients(req.body, {
       adminUser: req.adminUser,
+    });
+    return res.status(200).json(result);
+  } catch (error) {
+    return sendError(res, error);
+  }
+});
+
+adminApp.get("/projects", async (req, res) => {
+  try {
+    const result = await adminListProjects({
+      adminUser: req.adminUser,
+    });
+    return res.status(200).json(result);
+  } catch (error) {
+    return sendError(res, error);
+  }
+});
+
+adminApp.get("/projects/:projectId/clients", async (req, res) => {
+  try {
+    const result = await adminListProjectClients(req.params.projectId, {
+      search: req.query.search || "",
+      limit: req.query.limit || 100,
     });
     return res.status(200).json(result);
   } catch (error) {

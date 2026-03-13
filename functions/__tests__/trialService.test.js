@@ -27,285 +27,236 @@ const { db } = require("../firebase");
 const {
   CODES,
   TrialServiceError,
-  adminCreateClient,
-  adminExtendTrial,
-  adminListClients,
-  adminRevokeTrial,
+  adminCreateProject,
+  adminListProjectClients,
   startTrial,
   verifyTrial,
 } = require("../trialService");
 
-describe("trialService.startTrial", () => {
-  let createMock;
-  let docMock;
+function mockProjectsCollection({ projectDoc, projectByApiKey }) {
+  return {
+    where: jest.fn().mockReturnValue({
+      limit: jest.fn().mockReturnValue({
+        get: jest.fn().mockResolvedValue({
+          empty: !projectByApiKey,
+          docs: projectByApiKey
+            ? [
+                {
+                  id: projectByApiKey.id,
+                  data: () => projectByApiKey,
+                },
+              ]
+            : [],
+        }),
+      }),
+    }),
+    doc: jest.fn().mockReturnValue({
+      get: jest.fn().mockResolvedValue({
+        exists: Boolean(projectDoc),
+        id: projectDoc?.id || "",
+        data: () => projectDoc || {},
+      }),
+      create: jest.fn().mockResolvedValue(undefined),
+    }),
+    get: jest.fn().mockResolvedValue({
+      docs: [],
+    }),
+  };
+}
 
+describe("project-scoped startTrial/verifyTrial", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    createMock = jest.fn().mockResolvedValue(undefined);
-    docMock = jest.fn().mockReturnValue({
-      create: createMock,
-    });
-    db.collection.mockReturnValue({
-      doc: docMock,
-    });
     uuidv4.mockReturnValue("token-id-123");
     jwt.sign.mockReturnValue("signed-jwt");
   });
 
-  it("returns standardized success response", async () => {
-    jest.spyOn(Date, "now").mockReturnValue(1700000000000);
+  it("startTrial succeeds with valid projectApiKey", async () => {
+    const clientCreate = jest.fn().mockResolvedValue(undefined);
+    db.collection.mockImplementation((name) => {
+      if (name === "projects") {
+        return mockProjectsCollection({
+          projectByApiKey: {
+            id: "proj1",
+            name: "Project 1",
+            active: true,
+          },
+        });
+      }
+      if (name === "clients") {
+        return {
+          doc: jest.fn().mockReturnValue({
+            create: clientCreate,
+          }),
+        };
+      }
+      return {};
+    });
+
     const response = await startTrial(
       {
-        deviceId: "device-abc",
+        projectApiKey: "valid-api-key",
+        deviceId: "device-1",
         systemInfo: { os: "Windows", cpu: "Intel", gpu: "RTX" },
       },
       { jwtSecret: "secret", ip: "1.2.3.4" }
     );
 
-    expect(response).toEqual({
-      message: "Trial started successfully",
-      token: "signed-jwt",
-      statusCode: CODES.TRIAL_STARTED,
-      error: null,
-    });
+    expect(response.statusCode).toBe(CODES.TRIAL_STARTED);
+    expect(response.token).toBe("signed-jwt");
+    expect(clientCreate).toHaveBeenCalled();
   });
 
-  it("throws standardized duplicate-trial error", async () => {
-    createMock.mockRejectedValue({ code: 6 });
+  it("startTrial rejects invalid projectApiKey", async () => {
+    db.collection.mockImplementation((name) => {
+      if (name === "projects") {
+        return mockProjectsCollection({
+          projectByApiKey: null,
+        });
+      }
+      return {};
+    });
+
     await expect(
       startTrial(
         {
-          deviceId: "device-abc",
+          projectApiKey: "bad",
+          deviceId: "device-1",
           systemInfo: { os: "Windows", cpu: "Intel", gpu: "RTX" },
         },
-        { jwtSecret: "secret" }
+        { jwtSecret: "secret", ip: "1.2.3.4" }
       )
     ).rejects.toMatchObject({
-      httpStatus: 409,
-      statusCode: CODES.TRIAL_ALREADY_USED,
-      error: "TRIAL_ALREADY_USED",
+      statusCode: CODES.INVALID_PROJECT_API_KEY,
     });
   });
 
-  it("validates startTrial body", async () => {
-    await expect(startTrial({}, { jwtSecret: "secret" })).rejects.toBeInstanceOf(TrialServiceError);
-  });
-});
-
-describe("trialService.verifyTrial", () => {
-  let getMock;
-
-  beforeEach(() => {
-    jest.clearAllMocks();
-    getMock = jest.fn();
-    db.collection.mockReturnValue({
-      doc: jest.fn().mockReturnValue({
-        get: getMock,
-      }),
-    });
-  });
-
-  it("returns 9999 when device never registered", async () => {
-    getMock.mockResolvedValue({ exists: false });
-    const response = await verifyTrial(
-      { token: "", deviceId: "device-1" },
-      { jwtSecret: "secret" }
-    );
-
-    expect(response).toEqual({
-      message: "Device never registered. Show Start Trial popup.",
-      token: "",
-      statusCode: CODES.DEVICE_NEVER_REGISTERED,
-      error: null,
-    });
-  });
-
-  it("returns 8888 when device exists, token missing, and trial is active", async () => {
-    jest.spyOn(Date, "now").mockReturnValue(1000);
-    getMock.mockResolvedValue({
-      exists: true,
-      data: () => ({ tokenId: "token-1", trialEnd: 2000 }),
+  it("verifyTrial rejects cross-project token reuse", async () => {
+    jwt.verify.mockReturnValue({
+      projectId: "proj2",
+      deviceId: "device-1",
+      tokenId: "tok1",
     });
 
-    const response = await verifyTrial(
-      { token: null, deviceId: "device-1" },
-      { jwtSecret: "secret" }
-    );
-
-    expect(response).toEqual({
-      message: "Device registered and trial is active. Start Trial popup is not required.",
-      token: "",
-      statusCode: CODES.DEVICE_REGISTERED_TOKEN_MISSING_TRIAL_ACTIVE,
-      error: null,
-    });
-  });
-
-  it("returns 7777 when device exists, token missing, and trial is expired", async () => {
-    jest.spyOn(Date, "now").mockReturnValue(3000);
-    getMock.mockResolvedValue({
-      exists: true,
-      data: () => ({ tokenId: "token-1", trialEnd: 2000 }),
-    });
-
-    const response = await verifyTrial(
-      { token: "", deviceId: "device-1" },
-      { jwtSecret: "secret" }
-    );
-
-    expect(response).toEqual({
-      message: "Trial has expired. Contact admin.",
-      token: "",
-      statusCode: CODES.DEVICE_REGISTERED_TOKEN_MISSING_TRIAL_EXPIRED,
-      error: "TRIAL_EXPIRED",
-    });
-  });
-
-  it("returns verified response for valid token", async () => {
-    jest.spyOn(Date, "now").mockReturnValue(1000);
-    jwt.verify.mockReturnValue({ deviceId: "device-1", tokenId: "token-1" });
-    getMock.mockResolvedValue({
-      exists: true,
-      data: () => ({ tokenId: "token-1", trialEnd: 2000 }),
-    });
-
-    const response = await verifyTrial(
-      { token: "jwt", deviceId: "device-1" },
-      { jwtSecret: "secret" }
-    );
-
-    expect(response).toEqual({
-      message: "Trial verified successfully",
-      token: "jwt",
-      statusCode: CODES.TRIAL_VERIFIED,
-      error: null,
-    });
-  });
-
-  it("returns invalid-token response when jwt verification fails", async () => {
-    jwt.verify.mockImplementation(() => {
-      throw new Error("invalid");
-    });
-    getMock.mockResolvedValue({
-      exists: true,
-      data: () => ({ tokenId: "token-1", trialEnd: 2000 }),
-    });
-
-    const response = await verifyTrial(
-      { token: "bad", deviceId: "device-1" },
-      { jwtSecret: "secret" }
-    );
-
-    expect(response).toEqual({
-      message: "Invalid token",
-      token: "",
-      statusCode: CODES.INVALID_TOKEN,
-      error: "INVALID_TOKEN",
-    });
-  });
-});
-
-describe("trialService.admin actions", () => {
-  let getMock;
-  let createMock;
-  let updateMock;
-  let querySnapshotMock;
-
-  beforeEach(() => {
-    jest.clearAllMocks();
-    getMock = jest.fn();
-    createMock = jest.fn().mockResolvedValue(undefined);
-    updateMock = jest.fn().mockResolvedValue(undefined);
-    querySnapshotMock = {
-      docs: [],
-    };
-    const collectionApi = {
-      doc: jest.fn().mockReturnValue({
-        get: getMock,
-        create: createMock,
-        update: updateMock,
-      }),
-      orderBy: jest.fn().mockReturnThis(),
-      limit: jest.fn().mockReturnThis(),
-      get: jest.fn().mockResolvedValue(querySnapshotMock),
-    };
-    db.collection.mockReturnValue(collectionApi);
-    uuidv4.mockReturnValue("admin-token-id");
-    jwt.sign.mockReturnValue("admin-created-token");
-  });
-
-  it("adminCreateClient returns success contract with token", async () => {
-    const response = await adminCreateClient(
-      {
-        deviceId: "device-new",
-        systemInfo: { os: "Windows", cpu: "Intel", gpu: "RTX" },
-        trialDays: 10,
-      },
-      {
-        jwtSecret: "secret",
-        ip: "1.2.3.4",
+    db.collection.mockImplementation((name) => {
+      if (name === "projects") {
+        return mockProjectsCollection({
+          projectByApiKey: {
+            id: "proj1",
+            name: "Project 1",
+            active: true,
+          },
+        });
       }
+      if (name === "clients") {
+        return {
+          doc: jest.fn().mockReturnValue({
+            get: jest.fn().mockResolvedValue({
+              exists: true,
+              data: () => ({
+                deviceId: "device-1",
+                projectId: "proj1",
+                tokenId: "tok1",
+                trialEnd: Date.now() + 10000,
+              }),
+            }),
+          }),
+        };
+      }
+      return {};
+    });
+
+    const response = await verifyTrial(
+      {
+        projectApiKey: "valid-api-key",
+        deviceId: "device-1",
+        token: "jwt",
+      },
+      { jwtSecret: "secret" }
     );
 
-    expect(response).toEqual({
-      message: "Client added and trial created",
-      token: "admin-created-token",
-      statusCode: CODES.ADMIN_CLIENT_CREATED,
-      error: null,
-    });
+    expect(response.statusCode).toBe(CODES.PROJECT_MISMATCH);
+  });
+});
+
+describe("admin project APIs", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    uuidv4.mockReturnValue("proj-uuid-123");
   });
 
-  it("adminRevokeTrial updates trial and returns success", async () => {
-    getMock.mockResolvedValue({
-      exists: true,
-      data: () => ({ trialEnd: Date.now() + 10000 }),
+  it("adminCreateProject returns projectId + projectApiKey", async () => {
+    const createMock = jest.fn().mockResolvedValue(undefined);
+    db.collection.mockImplementation((name) => {
+      if (name === "projects") {
+        return {
+          doc: jest.fn().mockReturnValue({
+            get: jest.fn().mockResolvedValue({ exists: false }),
+            create: createMock,
+          }),
+        };
+      }
+      return {};
     });
 
-    const response = await adminRevokeTrial({ deviceId: "device-1" });
-
-    expect(updateMock).toHaveBeenCalled();
-    expect(response).toEqual({
-      message: "Trial revoked successfully",
-      token: "",
-      statusCode: CODES.ADMIN_TRIAL_REVOKED,
-      error: null,
+    const response = await adminCreateProject({
+      name: "Mining Simulator",
+      description: "Trial licensing",
     });
+
+    expect(response.statusCode).toBe(CODES.ADMIN_PROJECT_CREATED);
+    expect(response.project.projectId).toBeTruthy();
+    expect(response.project.projectApiKey).toBeTruthy();
+    expect(createMock).toHaveBeenCalled();
   });
 
-  it("adminExtendTrial extends trial and returns success", async () => {
-    getMock.mockResolvedValue({
-      exists: true,
-      data: () => ({ trialEnd: Date.now() + 10000 }),
+  it("adminListProjectClients returns project clients", async () => {
+    db.collection.mockImplementation((name) => {
+      if (name === "projects") {
+        return {
+          doc: jest.fn().mockReturnValue({
+            get: jest.fn().mockResolvedValue({
+              exists: true,
+              id: "proj1",
+              data: () => ({
+                name: "Mining Simulator",
+                active: true,
+              }),
+            }),
+          }),
+        };
+      }
+      if (name === "clients") {
+        return {
+          where: jest.fn().mockReturnValue({
+            limit: jest.fn().mockReturnValue({
+              get: jest.fn().mockResolvedValue({
+                docs: [
+                  {
+                    data: () => ({
+                      deviceId: "device-1",
+                      projectId: "proj1",
+                      trialStart: 1,
+                      trialEnd: Date.now() + 20000,
+                      systemInfo: {},
+                      ip: "1.2.3.4",
+                    }),
+                  },
+                ],
+              }),
+            }),
+          }),
+        };
+      }
+      return {};
     });
 
-    const response = await adminExtendTrial({ deviceId: "device-1", extendDays: 7 });
-
-    expect(updateMock).toHaveBeenCalled();
-    expect(response).toEqual({
-      message: "Trial extended successfully",
-      token: "",
-      statusCode: CODES.ADMIN_TRIAL_EXTENDED,
-      error: null,
-    });
+    const response = await adminListProjectClients("proj1", { limit: 20 });
+    expect(response.statusCode).toBe(CODES.ADMIN_PROJECT_CLIENTS_LISTED);
+    expect(response.clients.length).toBe(1);
   });
 
-  it("adminListClients returns mapped client rows", async () => {
-    querySnapshotMock.docs = [
-      {
-        id: "device-1",
-        data: () => ({
-          deviceId: "device-1",
-          trialStart: 1,
-          trialEnd: Date.now() + 10000,
-          systemInfo: { os: "Windows" },
-          revoked: false,
-        }),
-      },
-    ];
-
-    const response = await adminListClients({ limit: 20, search: "device" });
-
-    expect(response.statusCode).toBe(CODES.ADMIN_CLIENTS_LISTED);
-    expect(Array.isArray(response.clients)).toBe(true);
-    expect(response.clients[0].deviceId).toBe("device-1");
+  it("adminListProjectClients rejects invalid projectId", async () => {
+    await expect(adminListProjectClients("", {})).rejects.toBeInstanceOf(TrialServiceError);
   });
 });

@@ -45,6 +45,9 @@ jest.mock("../trialService", () => {
     startTrial: jest.fn(),
     verifyTrial: jest.fn(),
     adminCreateClient: jest.fn(),
+    adminCreateProject: jest.fn(),
+    adminListProjects: jest.fn(),
+    adminListProjectClients: jest.fn(),
     adminListClients: jest.fn(),
     adminRevokeTrial: jest.fn(),
     adminExtendTrial: jest.fn(),
@@ -196,5 +199,23 @@ describe("index HTTP handlers", () => {
       statusCode: 4005,
       error: "INVALID_JSON",
     });
+  });
+
+  it("GET /adminApi/projects returns project list payload", async () => {
+    trialService.adminListProjects.mockResolvedValue({
+      message: "Projects listed successfully",
+      token: "",
+      statusCode: 1201,
+      error: null,
+      projects: [{ projectId: "proj1", name: "Mining Simulator" }],
+    });
+
+    const res = await request(functionsExports.adminApi)
+      .get("/projects")
+      .set("Authorization", "Bearer valid-admin-token");
+
+    expect(res.status).toBe(200);
+    expect(res.body.statusCode).toBe(1201);
+    expect(Array.isArray(res.body.projects)).toBe(true);
   });
 });
