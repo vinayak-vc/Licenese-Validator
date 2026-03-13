@@ -193,6 +193,7 @@ Key verify responses:
 - `7004`: Trial expired
 - `7005`: Corrupt trial record
 - `4000`: Invalid request body
+- `4005`: Malformed JSON body
 - `4001`: Invalid deviceId
 - `4002`: Invalid systemInfo
 - `4003`: Invalid systemInfo fields

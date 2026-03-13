@@ -33,6 +33,7 @@ jest.mock("../trialService", () => {
   return {
     CODES: {
       INTERNAL_ERROR: 5000,
+      INVALID_JSON: 4005,
     },
     TrialServiceError,
     responseBody: jest.fn(({ message, token = "", statusCode, error = null }) => ({
@@ -179,6 +180,21 @@ describe("index HTTP handlers", () => {
       statusCode: 1103,
       error: null,
       clients: [{ deviceId: "device-1", status: "active" }],
+    });
+  });
+
+  it("returns standardized error for malformed JSON", async () => {
+    const res = await request(functionsExports.verifyTrial)
+      .post("/")
+      .set("Content-Type", "application/json")
+      .send('{"token":"abc" "deviceId":"device-1"}');
+
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({
+      message: "Malformed JSON body",
+      token: "",
+      statusCode: 4005,
+      error: "INVALID_JSON",
     });
   });
 });

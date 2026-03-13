@@ -194,3 +194,14 @@
   - `npm run set-admin-claim -- --uid <FIREBASE_UID>`
 - Updated `README.md` with copy-paste admin-claim commands.
 - Fixed argument parser in `setAdminClaim.js` to avoid hanging on flag-only options (e.g. `--help`).
+
+### Updated
+
+- Added malformed JSON parser handling in `functions/index.js` so invalid JSON requests return standardized API response.
+- New malformed JSON response:
+  - HTTP `400`
+  - `statusCode: 4005`
+  - `error: "INVALID_JSON"`
+  - `message: "Malformed JSON body"`
+- Added regression test in `functions/__tests__/index.test.js` to verify malformed JSON behavior.
+- Updated `README.md` with `4005` status code reference.

@@ -54,6 +54,19 @@ function createBaseApp() {
   const app = express();
   app.disable("x-powered-by");
   app.use(express.json({ limit: "64kb" }));
+  app.use((error, req, res, next) => {
+    if (error && error.type === "entity.parse.failed") {
+      return res.status(400).json(
+        responseBody({
+          message: "Malformed JSON body",
+          token: "",
+          statusCode: CODES.INVALID_JSON,
+          error: "INVALID_JSON",
+        })
+      );
+    }
+    return next(error);
+  });
   return app;
 }
 
