@@ -8,6 +8,10 @@ Production-grade backend for desktop trial licensing using:
 - Firestore
 - JWT
 
+## System Guide
+
+- [Admin + Developer System Guide](/I:/Vinayak_Projects/LicenceRegistration/docs/ADMIN_DEVELOPER_SYSTEM_GUIDE.md)
+
 ## Project Structure
 
 ```text

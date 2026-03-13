@@ -253,3 +253,16 @@
   - Clarified that `projectApiKey` is visible via admin projects endpoint.
   - Added project item response example with `projectApiKey`.
   - Documented admin panel ability to view/copy `projectApiKey`.
+
+## 2026-03-13
+
+### Added
+
+- Added a complete admin/developer operations guide:
+  - `docs/ADMIN_DEVELOPER_SYSTEM_GUIDE.md`
+  - Includes end-to-end architecture, roles, flows, API usage, status code behavior, deployment, and troubleshooting.
+
+### Updated
+
+- Updated `README.md` with a dedicated **System Guide** section linking to:
+  - `docs/ADMIN_DEVELOPER_SYSTEM_GUIDE.md`
