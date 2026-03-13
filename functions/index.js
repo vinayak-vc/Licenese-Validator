@@ -134,7 +134,7 @@ startTrialApp.all("*", (req, res) => {
     responseBody({
       message: "Method not allowed",
       token: "",
-      statusCode: 4050,
+      statusCode: CODES.METHOD_NOT_ALLOWED,
       error: "METHOD_NOT_ALLOWED",
     })
   );
@@ -158,7 +158,7 @@ verifyTrialApp.all("*", (req, res) => {
     responseBody({
       message: "Method not allowed",
       token: "",
-      statusCode: 4050,
+      statusCode: CODES.METHOD_NOT_ALLOWED,
       error: "METHOD_NOT_ALLOWED",
     })
   );
@@ -271,7 +271,7 @@ adminApp.all("*", (req, res) => {
     responseBody({
       message: "Method not allowed",
       token: "",
-      statusCode: 4050,
+      statusCode: CODES.METHOD_NOT_ALLOWED,
       error: "METHOD_NOT_ALLOWED",
     })
   );

@@ -1,4 +1,4 @@
-# Changelog
+﻿# Changelog
 
 ## 2026-03-12
 
@@ -200,7 +200,7 @@
 - Added malformed JSON parser handling in `functions/index.js` so invalid JSON requests return standardized API response.
 - New malformed JSON response:
   - HTTP `400`
-  - `statusCode: 4005`
+  - `statusCode: "4005"`
   - `error: "INVALID_JSON"`
   - `message: "Malformed JSON body"`
 - Added regression test in `functions/__tests__/index.test.js` to verify malformed JSON behavior.
@@ -266,3 +266,18 @@
 
 - Updated `README.md` with a dedicated **System Guide** section linking to:
   - `docs/ADMIN_DEVELOPER_SYSTEM_GUIDE.md`
+- Changed API contract typing for `statusCode` from number to string across the project.
+- Backend updates:
+  - `functions/trialService.js`: all `CODES` values converted to string literals.
+  - `responseBody()` and `TrialServiceError` now normalize `statusCode` as string.
+  - Added `CODES.METHOD_NOT_ALLOWED` and used it in `functions/index.js`.
+- Test updates:
+  - `functions/__tests__/index.test.js` now expects string status codes.
+  - Jest suites pass with updated contract.
+- Postman updates:
+  - `postman/Trial-Licensing.postman_collection.json`
+  - `postman/Admin-Trial-Licensing.postman_collection.json`
+  - Assertions updated to validate string status codes.
+- Documentation updates:
+  - `README.md` and `docs/ADMIN_DEVELOPER_SYSTEM_GUIDE.md` examples now show `statusCode` as string.
+

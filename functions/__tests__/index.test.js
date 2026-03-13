@@ -32,8 +32,9 @@ jest.mock("../trialService", () => {
 
   return {
     CODES: {
-      INTERNAL_ERROR: 5000,
-      INVALID_JSON: 4005,
+      INTERNAL_ERROR: "5000",
+      INVALID_JSON: "4005",
+      METHOD_NOT_ALLOWED: "4050",
     },
     TrialServiceError,
     responseBody: jest.fn(({ message, token = "", statusCode, error = null }) => ({
@@ -66,7 +67,7 @@ describe("index HTTP handlers", () => {
     trialService.startTrial.mockResolvedValue({
       message: "Trial started successfully",
       token: "jwt-token",
-      statusCode: 1000,
+      statusCode: "1000",
       error: null,
     });
 
@@ -79,7 +80,7 @@ describe("index HTTP handlers", () => {
     expect(res.body).toEqual({
       message: "Trial started successfully",
       token: "jwt-token",
-      statusCode: 1000,
+      statusCode: "1000",
       error: null,
     });
   });
@@ -90,14 +91,14 @@ describe("index HTTP handlers", () => {
     expect(res.body).toEqual({
       message: "Method not allowed",
       token: "",
-      statusCode: 4050,
+      statusCode: "4050",
       error: "METHOD_NOT_ALLOWED",
     });
   });
 
   it("maps TrialServiceError to standardized response", async () => {
     trialService.startTrial.mockRejectedValue(
-      new trialService.TrialServiceError("Trial already used", 409, 4009, "TRIAL_ALREADY_USED")
+      new trialService.TrialServiceError("Trial already used", 409, "4009", "TRIAL_ALREADY_USED")
     );
 
     const res = await request(functionsExports.startTrial).post("/").send({
@@ -109,7 +110,7 @@ describe("index HTTP handlers", () => {
     expect(res.body).toEqual({
       message: "Trial already used",
       token: "",
-      statusCode: 4009,
+      statusCode: "4009",
       error: "TRIAL_ALREADY_USED",
     });
   });
@@ -118,7 +119,7 @@ describe("index HTTP handlers", () => {
     trialService.verifyTrial.mockResolvedValue({
       message: "Device never registered. Show Start Trial popup.",
       token: "",
-      statusCode: 9999,
+      statusCode: "9999",
       error: null,
     });
 
@@ -131,7 +132,7 @@ describe("index HTTP handlers", () => {
     expect(res.body).toEqual({
       message: "Device never registered. Show Start Trial popup.",
       token: "",
-      statusCode: 9999,
+      statusCode: "9999",
       error: null,
     });
   });
@@ -140,7 +141,7 @@ describe("index HTTP handlers", () => {
     trialService.adminCreateClient.mockResolvedValue({
       message: "Client added and trial created",
       token: "new-client-token",
-      statusCode: 1100,
+      statusCode: "1100",
       error: null,
     });
 
@@ -157,7 +158,7 @@ describe("index HTTP handlers", () => {
     expect(res.body).toEqual({
       message: "Client added and trial created",
       token: "new-client-token",
-      statusCode: 1100,
+      statusCode: "1100",
       error: null,
     });
   });
@@ -166,7 +167,7 @@ describe("index HTTP handlers", () => {
     trialService.adminListClients.mockResolvedValue({
       message: "Clients listed successfully",
       token: "",
-      statusCode: 1103,
+      statusCode: "1103",
       error: null,
       clients: [{ deviceId: "device-1", status: "active" }],
     });
@@ -180,7 +181,7 @@ describe("index HTTP handlers", () => {
     expect(res.body).toEqual({
       message: "Clients listed successfully",
       token: "",
-      statusCode: 1103,
+      statusCode: "1103",
       error: null,
       clients: [{ deviceId: "device-1", status: "active" }],
     });
@@ -196,7 +197,7 @@ describe("index HTTP handlers", () => {
     expect(res.body).toEqual({
       message: "Malformed JSON body",
       token: "",
-      statusCode: 4005,
+      statusCode: "4005",
       error: "INVALID_JSON",
     });
   });
@@ -205,7 +206,7 @@ describe("index HTTP handlers", () => {
     trialService.adminListProjects.mockResolvedValue({
       message: "Projects listed successfully",
       token: "",
-      statusCode: 1201,
+      statusCode: "1201",
       error: null,
       projects: [{ projectId: "proj1", name: "Mining Simulator" }],
     });
@@ -215,7 +216,7 @@ describe("index HTTP handlers", () => {
       .set("Authorization", "Bearer valid-admin-token");
 
     expect(res.status).toBe(200);
-    expect(res.body.statusCode).toBe(1201);
+    expect(res.body.statusCode).toBe("1201");
     expect(Array.isArray(res.body.projects)).toBe(true);
   });
 });

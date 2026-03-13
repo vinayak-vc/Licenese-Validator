@@ -1,4 +1,4 @@
-# Trial Licensing System Backend
+﻿# Trial Licensing System Backend
 
 Production-grade backend for desktop trial licensing using:
 
@@ -90,7 +90,7 @@ All responses (success/error) use:
 {
   "message": "string",
   "token": "string",
-  "statusCode": 1000,
+  "statusCode": "1000",
   "error": null
 }
 ```
@@ -125,7 +125,7 @@ Success response:
 {
   "message": "Trial started successfully",
   "token": "<jwt-token>",
-  "statusCode": 1000,
+  "statusCode": "1000",
   "error": null
 }
 ```
@@ -163,7 +163,7 @@ Key verify responses:
 {
   "message": "Device never registered. Show Start Trial popup.",
   "token": "",
-  "statusCode": 9999,
+  "statusCode": "9999",
   "error": null
 }
 ```
@@ -172,7 +172,7 @@ Key verify responses:
 {
   "message": "Device registered and trial is active. Start Trial popup is not required.",
   "token": "",
-  "statusCode": 8888,
+  "statusCode": "8888",
   "error": null
 }
 ```
@@ -181,7 +181,7 @@ Key verify responses:
 {
   "message": "Trial has expired. Contact admin.",
   "token": "",
-  "statusCode": 7777,
+  "statusCode": "7777",
   "error": "TRIAL_EXPIRED"
 }
 ```
@@ -190,7 +190,7 @@ Key verify responses:
 {
   "message": "Trial verified successfully",
   "token": "<jwt-token>",
-  "statusCode": 1001,
+  "statusCode": "1001",
   "error": null
 }
 ```
@@ -291,7 +291,7 @@ Response includes `clients` array in addition to standard fields:
 {
   "message": "Clients listed successfully",
   "token": "",
-  "statusCode": 1103,
+  "statusCode": "1103",
   "error": null,
   "clients": [
     {
@@ -356,9 +356,9 @@ Unauthorized/forbidden responses:
 
 Error scenarios:
 
-- duplicate device trial -> HTTP `409`, body `statusCode: 4009`
-- invalid body/fields -> HTTP `400`, body `statusCode: 4000/4001/4002/4003`
-- missing server secret -> HTTP `500`, body `statusCode: 5001`
+- duplicate device trial -> HTTP `409`, body `statusCode: "4009"`
+- invalid body/fields -> HTTP `400`, body `statusCode: "4000"/"4001"/"4002"/"4003"`
+- missing server secret -> HTTP `500`, body `statusCode: "5001"`
 
 ### `POST /verifyTrial` input rules
 
@@ -371,16 +371,16 @@ Error scenarios:
 
 Error/decision scenarios:
 
-- invalid `token` type/oversize -> HTTP `400`, body `statusCode: 4004`
-- invalid `projectApiKey` -> HTTP `400`, body `statusCode: 4014`
-- device not registered -> HTTP `200`, body `statusCode: 9999`
-- registered + token missing + trial active -> HTTP `200`, body `statusCode: 8888`
-- registered + token missing + trial expired -> HTTP `200`, body `statusCode: 7777`
-- invalid JWT -> HTTP `200`, body `statusCode: 7001`
-- JWT device mismatch -> HTTP `200`, body `statusCode: 7002`
-- tokenId mismatch/revoked token -> HTTP `200`, body `statusCode: 7003`
-- trial expired with token -> HTTP `200`, body `statusCode: 7004`
-- corrupt trial record -> HTTP `200`, body `statusCode: 7005`
+- invalid `token` type/oversize -> HTTP `400`, body `statusCode: "4004"`
+- invalid `projectApiKey` -> HTTP `400`, body `statusCode: "4014"`
+- device not registered -> HTTP `200`, body `statusCode: "9999"`
+- registered + token missing + trial active -> HTTP `200`, body `statusCode: "8888"`
+- registered + token missing + trial expired -> HTTP `200`, body `statusCode: "7777"`
+- invalid JWT -> HTTP `200`, body `statusCode: "7001"`
+- JWT device mismatch -> HTTP `200`, body `statusCode: "7002"`
+- tokenId mismatch/revoked token -> HTTP `200`, body `statusCode: "7003"`
+- trial expired with token -> HTTP `200`, body `statusCode: "7004"`
+- corrupt trial record -> HTTP `200`, body `statusCode: "7005"`
 
 ## Security
 
@@ -609,3 +609,4 @@ Example project item:
 ### GET `/adminApi/projects/{projectId}/clients`
 
 Lists clients belonging to one project.
+

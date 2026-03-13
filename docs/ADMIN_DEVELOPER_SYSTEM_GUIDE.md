@@ -108,7 +108,7 @@ Success:
 {
   "message": "Trial started successfully",
   "token": "<jwt>",
-  "statusCode": 1000,
+  "statusCode": "1000",
   "error": null
 }
 ```
@@ -169,7 +169,7 @@ All APIs return:
 {
   "message": "string",
   "token": "string",
-  "statusCode": 1000,
+  "statusCode": "1000",
   "error": null
 }
 ```
@@ -204,3 +204,4 @@ npx firebase-tools deploy --only hosting
 - Rotate keys if leaked (create new project key workflow)
 - Keep project and client logs reviewed regularly
 - Use Firestore index on `clients.projectId` for fast project filtering
+

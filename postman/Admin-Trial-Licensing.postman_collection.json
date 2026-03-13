@@ -43,7 +43,7 @@
               "pm.test('Project created', function () {",
               "  pm.response.to.have.status(200);",
               "  const json = pm.response.json();",
-              "  pm.expect(json.statusCode).to.eql(1200);",
+              "  pm.expect(json.statusCode).to.eql('1200');",
               "  if (json.project) {",
               "    pm.collectionVariables.set('projectId', json.project.projectId || '');",
               "    pm.collectionVariables.set('projectApiKey', json.project.projectApiKey || '');",
