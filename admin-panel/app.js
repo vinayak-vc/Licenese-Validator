@@ -23,10 +23,11 @@ const panelCard = document.getElementById("panelCard");
 const clientsCard = document.getElementById("clientsCard");
 const authStatus = document.getElementById("authStatus");
 const feedbackBar = document.getElementById("feedbackBar");
-const clientsTableBody = document.getElementById("clientsTableBody");
+const clientCards = document.getElementById("clientCards");
 const searchInput = document.getElementById("searchInput");
 const projectSelect = document.getElementById("projectSelect");
-const selectedProjectInfo = document.getElementById("selectedProjectInfo");
+const selectedProjectName = document.getElementById("selectedProjectName");
+const selectedProjectMeta = document.getElementById("selectedProjectMeta");
 const projectApiKeyField = document.getElementById("projectApiKeyField");
 const copyProjectApiKeyBtn = document.getElementById("copyProjectApiKeyBtn");
 const projectApiKeyHint = document.getElementById("projectApiKeyHint");
@@ -34,10 +35,13 @@ const loginBtn = document.getElementById("loginBtn");
 const refreshBtn = document.getElementById("refreshBtn");
 const refreshProjectsBtn = document.getElementById("refreshProjectsBtn");
 const logoutBtn = document.getElementById("logoutBtn");
+const serverTimeText = document.getElementById("serverTimeText");
 
 let selectedProjectId = "";
 let cachedProjects = [];
 let feedbackTimeout = null;
+let serverTimeOffsetMs = 0;
+let serverClockTimer = null;
 
 function showFeedback(type, message, persist = false) {
   feedbackBar.textContent = message;
@@ -52,16 +56,8 @@ function showFeedback(type, message, persist = false) {
   if (!persist) {
     feedbackTimeout = setTimeout(() => {
       feedbackBar.classList.add("hidden");
-    }, 4000);
+    }, 4200);
   }
-}
-
-function clearFeedback() {
-  if (feedbackTimeout) {
-    clearTimeout(feedbackTimeout);
-    feedbackTimeout = null;
-  }
-  feedbackBar.classList.add("hidden");
 }
 
 function formatDate(ms) {
@@ -72,15 +68,9 @@ function formatDate(ms) {
 }
 
 function normalizeStatus(client) {
-  const raw = String(client?.status || "").toLowerCase().trim();
-  if (raw === "active") {
-    return "active";
-  }
-  if (raw === "expired") {
-    return "expired";
-  }
-  if (raw === "revoked") {
-    return "revoked";
+  const raw = String(client?.status || "").trim().toLowerCase();
+  if (raw === "active" || raw === "expired" || raw === "revoked") {
+    return raw;
   }
 
   const trialEnd = Number(client?.trialEnd || 0);
@@ -90,61 +80,118 @@ function normalizeStatus(client) {
   return "unknown";
 }
 
-function renderClients(clients) {
-  clientsTableBody.innerHTML = "";
-  if (!Array.isArray(clients) || !clients.length) {
-    clientsTableBody.innerHTML = "<tr><td colspan='5' class='empty-row'>No clients found for this project.</td></tr>";
-    return;
-  }
-
-  for (const client of clients) {
-    const tr = document.createElement("tr");
-    const system = client.systemInfo || {};
-    const status = normalizeStatus(client);
-
-    tr.innerHTML = `
-      <td>${client.deviceId || "-"}</td>
-      <td><span class="status-pill ${status}">${status}</span></td>
-      <td>${formatDate(client.trialEnd)}</td>
-      <td>${(system.os || "-")} / ${(system.cpu || "-")} / ${(system.gpu || "-")}</td>
-      <td class="cell-actions">
-        <button class="mini" data-action="extend" data-device="${client.deviceId}">+7d</button>
-        <button class="mini danger" data-action="revoke" data-device="${client.deviceId}">Revoke</button>
-      </td>
-    `;
-    clientsTableBody.appendChild(tr);
-  }
-}
-
 function ensureSelectedProject() {
   if (!selectedProjectId) {
     throw new Error("Please select a project first.");
   }
 }
 
+function updateServerOffsetFromHeader(response) {
+  const headerValue = response.headers.get("date");
+  if (!headerValue) {
+    return;
+  }
+  const serverMs = Date.parse(headerValue);
+  if (!Number.isFinite(serverMs)) {
+    return;
+  }
+  serverTimeOffsetMs = serverMs - Date.now();
+}
+
+function renderServerTime() {
+  const ms = Date.now() + serverTimeOffsetMs;
+  serverTimeText.textContent = new Date(ms).toLocaleString();
+}
+
+function startServerClock() {
+  if (serverClockTimer) {
+    clearInterval(serverClockTimer);
+  }
+  renderServerTime();
+  serverClockTimer = setInterval(renderServerTime, 1000);
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function renderClientCards(clients) {
+  clientCards.innerHTML = "";
+  if (!Array.isArray(clients) || !clients.length) {
+    clientCards.innerHTML = "<div class='empty-card'>No clients found for this project.</div>";
+    return;
+  }
+
+  for (const client of clients) {
+    const deviceId = escapeHtml(client.deviceId || "-");
+    const status = normalizeStatus(client);
+    const trialEnd = formatDate(Number(client.trialEnd || 0));
+    const system = client.systemInfo || {};
+    const os = escapeHtml(system.os || "-");
+    const cpu = escapeHtml(system.cpu || "-");
+    const gpu = escapeHtml(system.gpu || "-");
+    const ip = escapeHtml(client.ip || "-");
+    const createdAt = escapeHtml(String(client.createdAt || "-"));
+    const projectId = escapeHtml(client.projectId || "-");
+
+    const card = document.createElement("details");
+    card.className = "client-card";
+    card.innerHTML = `
+      <summary>
+        <div class="client-summary">
+          <div class="client-device">${deviceId}</div>
+          <span class="status-pill ${status}">${status}</span>
+          <div class="trial-end">${escapeHtml(trialEnd)}</div>
+          <div class="summary-actions">
+            <button class="card-action" data-action="extend" data-device="${deviceId}" type="button">+7d</button>
+            <button class="card-action danger" data-action="revoke" data-device="${deviceId}" type="button">Revoke</button>
+          </div>
+        </div>
+      </summary>
+      <div class="client-extra">
+        <div class="extra-grid">
+          <div><span class="muted">Project:</span> ${projectId}</div>
+          <div><span class="muted">IP:</span> ${ip}</div>
+          <div><span class="muted">OS:</span> ${os}</div>
+          <div><span class="muted">CPU:</span> ${cpu}</div>
+          <div><span class="muted">GPU:</span> ${gpu}</div>
+          <div><span class="muted">Created:</span> ${createdAt}</div>
+        </div>
+      </div>
+    `;
+    clientCards.appendChild(card);
+  }
+}
+
 function updateSelectedProjectDetails(selected) {
-  selectedProjectInfo.textContent = selected
-    ? `Selected: ${selected.name} | ID: ${selected.projectId} | Active: ${selected.active}`
-    : "No project selected.";
-
-  const key = selected?.projectApiKey || "";
-  projectApiKeyField.value = key;
-
   if (!selected) {
+    selectedProjectName.textContent = "No project selected";
+    selectedProjectMeta.textContent = "[project-id]";
+    projectApiKeyField.value = "";
     projectApiKeyHint.textContent = "";
     return;
   }
 
+  selectedProjectName.textContent = selected.name || "Unnamed Project";
+  selectedProjectMeta.textContent = `[${selected.projectId}] active: ${Boolean(selected.active)}`;
+
+  const key = selected.projectApiKey || "";
+  projectApiKeyField.value = key;
   if (key) {
     projectApiKeyHint.textContent = "Share this projectApiKey securely with the client app developer.";
   } else {
-    projectApiKeyHint.textContent =
-      "No projectApiKey stored for this project (legacy record). Create a new project if needed.";
+    projectApiKeyHint.textContent = "No projectApiKey stored for this project (legacy record).";
   }
 }
 
 function renderProjectSelector(projects) {
   projectSelect.innerHTML = "";
+
   if (!Array.isArray(projects) || !projects.length) {
     const option = document.createElement("option");
     option.value = "";
@@ -165,6 +212,7 @@ function renderProjectSelector(projects) {
   if (!selectedProjectId || !projects.some((p) => p.projectId === selectedProjectId)) {
     selectedProjectId = projects[0].projectId;
   }
+
   projectSelect.value = selectedProjectId;
   const selected = projects.find((p) => p.projectId === selectedProjectId);
   updateSelectedProjectDetails(selected || null);
@@ -202,6 +250,8 @@ async function callAdmin(method, endpoint, body = null) {
     body: body === null ? undefined : JSON.stringify(body),
   });
 
+  updateServerOffsetFromHeader(response);
+
   let json = {};
   try {
     json = await response.json();
@@ -210,8 +260,7 @@ async function callAdmin(method, endpoint, body = null) {
   }
 
   if (!response.ok || json.error) {
-    const reason = json.message || json.error || "Request failed";
-    throw new Error(reason);
+    throw new Error(json.message || json.error || "Request failed");
   }
 
   return json;
@@ -226,18 +275,16 @@ async function loadProjects() {
 async function loadClients() {
   ensureSelectedProject();
   const search = searchInput.value.trim();
-  const encodedSearch = encodeURIComponent(search);
   const response = await callAdmin(
     "GET",
-    `/projects/${encodeURIComponent(selectedProjectId)}/clients?limit=200&search=${encodedSearch}`
+    `/projects/${encodeURIComponent(selectedProjectId)}/clients?limit=200&search=${encodeURIComponent(search)}`
   );
-  renderClients(response.clients || []);
+  renderClientCards(response.clients || []);
 }
 
 loginBtn.addEventListener("click", async () => {
   await withButtonBusy(loginBtn, "Logging in...", async () => {
     try {
-      clearFeedback();
       const email = document.getElementById("email").value.trim();
       const password = document.getElementById("password").value;
       await signInWithEmailAndPassword(auth, email, password);
@@ -257,18 +304,6 @@ logoutBtn.addEventListener("click", async () => {
   });
 });
 
-refreshBtn.addEventListener("click", async () => {
-  await withButtonBusy(refreshBtn, "Refreshing...", async () => {
-    try {
-      showFeedback("info", "Refreshing clients...");
-      await loadClients();
-      showFeedback("success", "Clients refreshed.");
-    } catch (error) {
-      showFeedback("error", error.message, true);
-    }
-  });
-});
-
 refreshProjectsBtn.addEventListener("click", async () => {
   await withButtonBusy(refreshProjectsBtn, "Refreshing...", async () => {
     try {
@@ -284,14 +319,25 @@ refreshProjectsBtn.addEventListener("click", async () => {
   });
 });
 
+refreshBtn.addEventListener("click", async () => {
+  await withButtonBusy(refreshBtn, "Refreshing...", async () => {
+    try {
+      showFeedback("info", "Refreshing clients...");
+      await loadClients();
+      showFeedback("success", "Clients refreshed.");
+    } catch (error) {
+      showFeedback("error", error.message, true);
+    }
+  });
+});
+
 projectSelect.addEventListener("change", async () => {
   selectedProjectId = projectSelect.value;
   const selected = cachedProjects.find((p) => p.projectId === selectedProjectId);
   updateSelectedProjectDetails(selected || null);
   try {
-    showFeedback("info", "Loading clients...");
     await loadClients();
-    showFeedback("success", "Project selected.");
+    showFeedback("success", "Project switched.");
   } catch (error) {
     showFeedback("error", error.message, true);
   }
@@ -300,12 +346,12 @@ projectSelect.addEventListener("change", async () => {
 copyProjectApiKeyBtn.addEventListener("click", async () => {
   const value = projectApiKeyField.value.trim();
   if (!value) {
-    showFeedback("warning", "No projectApiKey available for selected project.");
+    showFeedback("warning", "No projectApiKey available for this project.");
     return;
   }
+
   try {
     await navigator.clipboard.writeText(value);
-    projectApiKeyHint.textContent = "Copied projectApiKey to clipboard.";
     showFeedback("success", "Project API key copied.");
   } catch (_) {
     showFeedback("error", "Unable to copy projectApiKey. Copy manually from the field.", true);
@@ -321,7 +367,7 @@ document.getElementById("createProjectForm").addEventListener("submit", async (e
         name: document.getElementById("projectName").value.trim(),
         description: document.getElementById("projectDescription").value.trim(),
       });
-      const createdProjectId = response?.project?.projectId;
+      const createdProjectId = response?.project?.projectId || "";
       await loadProjects();
       if (createdProjectId) {
         selectedProjectId = createdProjectId;
@@ -352,29 +398,10 @@ document.getElementById("createClientForm").addEventListener("submit", async (ev
         },
         trialDays: Number(document.getElementById("createDays").value || 7),
       });
-      await loadClients();
       event.currentTarget.reset();
       document.getElementById("createDays").value = "7";
-      showFeedback("success", "Client trial created successfully.");
-    } catch (error) {
-      showFeedback("error", error.message, true);
-    }
-  });
-});
-
-document.getElementById("revokeForm").addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const submitBtn = event.currentTarget.querySelector("button[type='submit']");
-  await withButtonBusy(submitBtn, "Revoking...", async () => {
-    try {
-      ensureSelectedProject();
-      await callAdmin("POST", "/revokeTrial", {
-        projectId: selectedProjectId,
-        deviceId: document.getElementById("revokeDeviceId").value.trim(),
-      });
       await loadClients();
-      event.currentTarget.reset();
-      showFeedback("success", "Trial revoked successfully.");
+      showFeedback("success", "Client added and trial started.");
     } catch (error) {
       showFeedback("error", error.message, true);
     }
@@ -392,9 +419,9 @@ document.getElementById("extendForm").addEventListener("submit", async (event) =
         deviceId: document.getElementById("extendDeviceId").value.trim(),
         extendDays: Number(document.getElementById("extendDays").value || 7),
       });
-      await loadClients();
       event.currentTarget.reset();
       document.getElementById("extendDays").value = "7";
+      await loadClients();
       showFeedback("success", "Trial extended successfully.");
     } catch (error) {
       showFeedback("error", error.message, true);
@@ -402,31 +429,56 @@ document.getElementById("extendForm").addEventListener("submit", async (event) =
   });
 });
 
-clientsTableBody.addEventListener("click", async (event) => {
-  const button = event.target.closest("button[data-action]");
-  if (!button) {
+document.getElementById("revokeForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const submitBtn = event.currentTarget.querySelector("button[type='submit']");
+  await withButtonBusy(submitBtn, "Revoking...", async () => {
+    try {
+      ensureSelectedProject();
+      await callAdmin("POST", "/revokeTrial", {
+        projectId: selectedProjectId,
+        deviceId: document.getElementById("revokeDeviceId").value.trim(),
+      });
+      event.currentTarget.reset();
+      await loadClients();
+      showFeedback("success", "Trial revoked successfully.");
+    } catch (error) {
+      showFeedback("error", error.message, true);
+    }
+  });
+});
+
+clientCards.addEventListener("click", async (event) => {
+  const actionButton = event.target.closest("button.card-action");
+  if (!actionButton) {
     return;
   }
 
-  const action = button.getAttribute("data-action");
-  const deviceId = button.getAttribute("data-device");
+  event.preventDefault();
+  event.stopPropagation();
+
+  const action = actionButton.getAttribute("data-action");
+  const deviceId = actionButton.getAttribute("data-device");
   if (!deviceId) {
     return;
   }
 
-  await withButtonBusy(button, action === "extend" ? "Extending..." : "Revoking...", async () => {
+  await withButtonBusy(actionButton, action === "extend" ? "Extending..." : "Revoking...", async () => {
     try {
       ensureSelectedProject();
-      if (action === "revoke") {
-        await callAdmin("POST", "/revokeTrial", { projectId: selectedProjectId, deviceId });
-        showFeedback("success", `Trial revoked for ${deviceId}.`);
-      } else if (action === "extend") {
+      if (action === "extend") {
         await callAdmin("POST", "/extendTrial", {
           projectId: selectedProjectId,
           deviceId,
           extendDays: 7,
         });
-        showFeedback("success", `Trial extended by 7 days for ${deviceId}.`);
+        showFeedback("success", `Extended ${deviceId} by 7 days.`);
+      } else if (action === "revoke") {
+        await callAdmin("POST", "/revokeTrial", {
+          projectId: selectedProjectId,
+          deviceId,
+        });
+        showFeedback("success", `Revoked trial for ${deviceId}.`);
       }
       await loadClients();
     } catch (error) {
@@ -440,7 +492,6 @@ searchInput.addEventListener("keyup", async (event) => {
     return;
   }
   try {
-    showFeedback("info", "Searching...");
     await loadClients();
     showFeedback("success", "Search complete.");
   } catch (error) {
@@ -450,22 +501,22 @@ searchInput.addEventListener("keyup", async (event) => {
 
 onAuthStateChanged(auth, async (user) => {
   const isLoggedIn = Boolean(user);
+
   authCard.classList.toggle("hidden", isLoggedIn);
   panelCard.classList.toggle("hidden", !isLoggedIn);
   clientsCard.classList.toggle("hidden", !isLoggedIn);
+  logoutBtn.classList.toggle("hidden", !isLoggedIn);
 
   if (!isLoggedIn) {
-    renderClients([]);
     selectedProjectId = "";
     cachedProjects = [];
     renderProjectSelector([]);
-    projectApiKeyField.value = "";
-    projectApiKeyHint.textContent = "";
+    renderClientCards([]);
     return;
   }
 
   try {
-    showFeedback("info", "Loading admin data...");
+    showFeedback("info", "Loading projects and clients...");
     await loadProjects();
     if (selectedProjectId) {
       await loadClients();
@@ -475,3 +526,5 @@ onAuthStateChanged(auth, async (user) => {
     showFeedback("error", error.message, true);
   }
 });
+
+startServerClock();

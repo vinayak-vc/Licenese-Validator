@@ -295,3 +295,24 @@
   - Added centralized feedback handling and better API error surfacing for operators.
   - Added action-level success/error messaging after each operation.
 
+### Updated
+
+- Major admin panel layout redesign to 4-zone workspace:
+  - Top-wide title area with small logout button at top-right.
+  - Left side now uses 2-column expandable action panels.
+  - Right side now uses expandable client cards (collapsed by default).
+  - Bottom-left server-time status bar added.
+- Left panel behavior updates:
+  - Added selected-project header with bold title and small bracketed project ID.
+  - `Create Project` and `Add New Client` panels are collapsed by default.
+  - `Select Project`, `Extend Trial`, and `Revoke Trial` remain expandable with defined column placement.
+- Right panel client UX updates:
+  - Replaced table layout with card-based `details` list.
+  - Collapsed card shows deviceId, status, trial end, and quick actions (`+7d`, `Revoke`).
+  - Expanded card shows additional details (project, IP, system info, created timestamp).
+- Visual/interaction improvements:
+  - Dark "space" theme refreshed across whole panel.
+  - Added motion transitions for feedback, panel expansion, and card expansion.
+  - Whole page scrolling disabled; internal sections handle overflow.
+  - Server time now syncs from response `Date` header and updates live.
+

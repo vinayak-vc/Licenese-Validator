@@ -7,103 +7,112 @@
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <main class="container">
-      <div class="hero">
-        <h1>Trial Licensing Admin</h1>
-        <p class="muted">Manage projects, clients, revocations, and extensions from one panel.</p>
-      </div>
+    <main class="app-shell">
+      <header class="title-bar">
+        <div class="title-center">
+          <h1>Trial Licensing Control</h1>
+          <p>Project operations and client trial management</p>
+        </div>
+        <button id="logoutBtn" class="secondary small hidden">Logout</button>
+      </header>
+
       <div id="feedbackBar" class="feedback hidden" role="status" aria-live="polite"></div>
 
-      <section class="card" id="authCard">
-        <h2>Admin Login</h2>
-        <label>Email</label>
-        <input id="email" type="email" placeholder="admin@example.com" />
-        <label>Password</label>
-        <input id="password" type="password" placeholder="********" />
-        <button id="loginBtn">Login</button>
-        <p id="authStatus" class="muted"></p>
-      </section>
+      <section class="workspace">
+        <aside class="left-pane">
+          <section class="card login-card" id="authCard">
+            <h2>Admin Login</h2>
+            <label>Email</label>
+            <input id="email" type="email" placeholder="admin@example.com" />
+            <label>Password</label>
+            <input id="password" type="password" placeholder="********" />
+            <button id="loginBtn">Login</button>
+            <p id="authStatus" class="muted"></p>
+          </section>
 
-      <section class="card hidden" id="panelCard">
-        <div class="row">
-          <h2>Admin Actions</h2>
-          <button id="logoutBtn" class="secondary">Logout</button>
-        </div>
-
-        <div class="grid">
-          <form id="createProjectForm" class="form-block">
-            <h3>Create Project</h3>
-            <input id="projectName" placeholder="Project name" required />
-            <input id="projectDescription" placeholder="Project description" />
-            <button type="submit">Create Project</button>
-          </form>
-
-          <div class="form-block">
-            <h3>Select Project</h3>
-            <select id="projectSelect"></select>
-            <button id="refreshProjectsBtn" type="button" class="secondary">Refresh Projects</button>
-            <p id="selectedProjectInfo" class="muted">No project selected.</p>
-            <label>Project API Key</label>
-            <div class="inline-actions">
-              <input id="projectApiKeyField" readonly placeholder="Project API key will appear here" />
-              <button id="copyProjectApiKeyBtn" type="button" class="secondary">Copy</button>
+          <section class="card hidden" id="panelCard">
+            <div class="selected-project">
+              <p class="selected-label">Selected Project</p>
+              <h2 id="selectedProjectName">No project selected</h2>
+              <p id="selectedProjectMeta" class="muted">[project-id]</p>
             </div>
-            <p id="projectApiKeyHint" class="muted"></p>
-          </div>
 
-          <form id="createClientForm" class="form-block">
-            <h3>Add New Client</h3>
-            <input id="createDeviceId" placeholder="deviceId" required />
-            <input id="createOs" placeholder="OS" required />
-            <input id="createCpu" placeholder="CPU" required />
-            <input id="createGpu" placeholder="GPU" required />
-            <input id="createDays" type="number" placeholder="trialDays (1-365)" value="7" />
-            <button type="submit">Create Client Trial</button>
-          </form>
+            <div class="actions-grid">
+              <details class="panel-block" id="createProjectPanel">
+                <summary>Create Project</summary>
+                <form id="createProjectForm" class="panel-body">
+                  <input id="projectName" placeholder="Project name" required />
+                  <input id="projectDescription" placeholder="Project description" />
+                  <button type="submit">Create Project</button>
+                </form>
+              </details>
 
-          <form id="extendForm" class="form-block">
-            <h3>Extend Trial</h3>
-            <input id="extendDeviceId" placeholder="deviceId" required />
-            <input id="extendDays" type="number" placeholder="extendDays (1-365)" value="7" required />
-            <button type="submit">Extend Trial</button>
-          </form>
+              <details class="panel-block" id="selectProjectPanel" open>
+                <summary>Select Project</summary>
+                <div class="panel-body">
+                  <select id="projectSelect"></select>
+                  <div class="inline-actions">
+                    <button id="refreshProjectsBtn" type="button" class="secondary">Refresh</button>
+                    <button id="copyProjectApiKeyBtn" type="button" class="secondary">Copy API Key</button>
+                  </div>
+                  <label>Project API Key</label>
+                  <input id="projectApiKeyField" readonly placeholder="Project API key appears here" />
+                  <p id="projectApiKeyHint" class="muted"></p>
+                </div>
+              </details>
 
-          <form id="revokeForm" class="form-block">
-            <h3>Revoke Trial</h3>
-            <input id="revokeDeviceId" placeholder="deviceId" required />
-            <button type="submit" class="danger">Revoke Now</button>
-          </form>
-        </div>
+              <details class="panel-block" id="addClientPanel">
+                <summary>Add New Client</summary>
+                <form id="createClientForm" class="panel-body">
+                  <input id="createDeviceId" placeholder="deviceId" required />
+                  <input id="createOs" placeholder="OS" required />
+                  <input id="createCpu" placeholder="CPU" required />
+                  <input id="createGpu" placeholder="GPU" required />
+                  <input id="createDays" type="number" min="1" max="365" value="7" />
+                  <button type="submit">Create Client Trial</button>
+                </form>
+              </details>
+
+              <details class="panel-block" id="extendPanel" open>
+                <summary>Extend Trial</summary>
+                <form id="extendForm" class="panel-body">
+                  <input id="extendDeviceId" placeholder="deviceId" required />
+                  <input id="extendDays" type="number" min="1" max="365" value="7" required />
+                  <button type="submit">Extend Trial</button>
+                </form>
+              </details>
+
+              <details class="panel-block" id="revokePanel" open>
+                <summary>Revoke Trial</summary>
+                <form id="revokeForm" class="panel-body">
+                  <input id="revokeDeviceId" placeholder="deviceId" required />
+                  <button type="submit" class="danger">Revoke Now</button>
+                </form>
+              </details>
+            </div>
+          </section>
+        </aside>
+
+        <section class="right-pane">
+          <section class="card hidden" id="clientsCard">
+            <div class="clients-head">
+              <h2>Registered Clients</h2>
+              <div class="inline-actions">
+                <input id="searchInput" placeholder="Search deviceId..." />
+                <button id="refreshBtn" class="secondary">Refresh</button>
+              </div>
+            </div>
+            <div id="clientCards" class="client-cards">
+              <div class="empty-card">Select a project to load clients.</div>
+            </div>
+          </section>
+        </section>
       </section>
 
-      <section class="card hidden" id="clientsCard">
-        <div class="row row-gap">
-          <h2>Registered Clients</h2>
-          <div class="inline-actions">
-            <input id="searchInput" placeholder="Search deviceId..." />
-            <button id="refreshBtn" class="secondary">Refresh</button>
-          </div>
-        </div>
-
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Device ID</th>
-                <th>Status</th>
-                <th>Trial End</th>
-                <th>System</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody id="clientsTableBody">
-              <tr>
-                <td colspan="5" class="empty-row">Login to load clients.</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
+      <footer class="status-bar">
+        <span class="muted">Server Time:</span>
+        <strong id="serverTimeText">--</strong>
+      </footer>
     </main>
 
     <script type="module" src="./app.js"></script>
