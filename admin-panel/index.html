@@ -28,6 +28,20 @@
         </div>
 
         <div class="grid">
+          <form id="createProjectForm" class="form-block">
+            <h3>Create Project</h3>
+            <input id="projectName" placeholder="Project name" required />
+            <input id="projectDescription" placeholder="Project description" />
+            <button type="submit">Create Project</button>
+          </form>
+
+          <div class="form-block">
+            <h3>Select Project</h3>
+            <select id="projectSelect"></select>
+            <button id="refreshProjectsBtn" type="button">Refresh Projects</button>
+            <p id="selectedProjectInfo" class="muted">No project selected.</p>
+          </div>
+
           <form id="createClientForm" class="form-block">
             <h3>Add New Client</h3>
             <input id="createDeviceId" placeholder="deviceId" required />
