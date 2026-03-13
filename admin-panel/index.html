@@ -40,6 +40,12 @@
             <select id="projectSelect"></select>
             <button id="refreshProjectsBtn" type="button">Refresh Projects</button>
             <p id="selectedProjectInfo" class="muted">No project selected.</p>
+            <label>Project API Key</label>
+            <div class="inline-actions">
+              <input id="projectApiKeyField" readonly placeholder="Project API key will appear here" />
+              <button id="copyProjectApiKeyBtn" type="button">Copy</button>
+            </div>
+            <p id="projectApiKeyHint" class="muted"></p>
           </div>
 
           <form id="createClientForm" class="form-block">

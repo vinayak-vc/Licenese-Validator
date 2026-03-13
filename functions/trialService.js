@@ -542,6 +542,7 @@ async function adminCreateProject(payload) {
   await docRef.create({
     name,
     description,
+    apiKey: projectApiKey,
     apiKeyHash,
     apiKeyPreview: `${projectApiKey.slice(0, 6)}...${projectApiKey.slice(-4)}`,
     active: true,
@@ -573,6 +574,7 @@ async function adminListProjects() {
       description: data.description || "",
       active: Boolean(data.active),
       apiKeyPreview: data.apiKeyPreview || "",
+      projectApiKey: data.apiKey || "",
     };
   });
 

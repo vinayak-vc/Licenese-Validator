@@ -28,6 +28,7 @@ const {
   CODES,
   TrialServiceError,
   adminCreateProject,
+  adminListProjects,
   adminListProjectClients,
   startTrial,
   verifyTrial,
@@ -258,5 +259,33 @@ describe("admin project APIs", () => {
 
   it("adminListProjectClients rejects invalid projectId", async () => {
     await expect(adminListProjectClients("", {})).rejects.toBeInstanceOf(TrialServiceError);
+  });
+
+  it("adminListProjects exposes projectApiKey for admin panel", async () => {
+    db.collection.mockImplementation((name) => {
+      if (name === "projects") {
+        return {
+          get: jest.fn().mockResolvedValue({
+            docs: [
+              {
+                id: "proj1",
+                data: () => ({
+                  name: "Mining Simulator",
+                  description: "Desc",
+                  active: true,
+                  apiKeyPreview: "abc...123",
+                  apiKey: "full-project-api-key",
+                }),
+              },
+            ],
+          }),
+        };
+      }
+      return {};
+    });
+
+    const response = await adminListProjects();
+    expect(response.statusCode).toBe(CODES.ADMIN_PROJECTS_LISTED);
+    expect(response.projects[0].projectApiKey).toBe("full-project-api-key");
   });
 });

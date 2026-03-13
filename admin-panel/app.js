@@ -27,6 +27,9 @@ const clientsTableBody = document.getElementById("clientsTableBody");
 const searchInput = document.getElementById("searchInput");
 const projectSelect = document.getElementById("projectSelect");
 const selectedProjectInfo = document.getElementById("selectedProjectInfo");
+const projectApiKeyField = document.getElementById("projectApiKeyField");
+const copyProjectApiKeyBtn = document.getElementById("copyProjectApiKeyBtn");
+const projectApiKeyHint = document.getElementById("projectApiKeyHint");
 
 let selectedProjectId = "";
 let cachedProjects = [];
@@ -72,6 +75,25 @@ function ensureSelectedProject() {
   }
 }
 
+function updateSelectedProjectDetails(selected) {
+  selectedProjectInfo.textContent = selected
+    ? `Selected: ${selected.name} | ID: ${selected.projectId} | Active: ${selected.active}`
+    : "No project selected.";
+
+  const key = selected?.projectApiKey || "";
+  projectApiKeyField.value = key;
+  if (!selected) {
+    projectApiKeyHint.textContent = "";
+    return;
+  }
+  if (key) {
+    projectApiKeyHint.textContent = "Share this projectApiKey with the client app developer.";
+  } else {
+    projectApiKeyHint.textContent =
+      "No projectApiKey stored for this project (legacy record). Create a new project if needed.";
+  }
+}
+
 function renderProjectSelector(projects) {
   projectSelect.innerHTML = "";
   if (!Array.isArray(projects) || !projects.length) {
@@ -80,7 +102,7 @@ function renderProjectSelector(projects) {
     option.textContent = "No projects available";
     projectSelect.appendChild(option);
     selectedProjectId = "";
-    selectedProjectInfo.textContent = "No project selected.";
+    updateSelectedProjectDetails(null);
     return;
   }
 
@@ -96,9 +118,7 @@ function renderProjectSelector(projects) {
   }
   projectSelect.value = selectedProjectId;
   const selected = projects.find((p) => p.projectId === selectedProjectId);
-  selectedProjectInfo.textContent = selected
-    ? `Selected: ${selected.name} | ID: ${selected.projectId} | Active: ${selected.active}`
-    : "No project selected.";
+  updateSelectedProjectDetails(selected || null);
 }
 
 async function callAdmin(method, endpoint, body = null) {
@@ -181,13 +201,25 @@ document.getElementById("refreshProjectsBtn").addEventListener("click", async ()
 projectSelect.addEventListener("change", async () => {
   selectedProjectId = projectSelect.value;
   const selected = cachedProjects.find((p) => p.projectId === selectedProjectId);
-  selectedProjectInfo.textContent = selected
-    ? `Selected: ${selected.name} | ID: ${selected.projectId} | Active: ${selected.active}`
-    : "No project selected.";
+  updateSelectedProjectDetails(selected || null);
   try {
     await loadClients();
   } catch (error) {
     renderResponse({ message: error.message });
+  }
+});
+
+copyProjectApiKeyBtn.addEventListener("click", async () => {
+  const value = projectApiKeyField.value.trim();
+  if (!value) {
+    renderResponse({ message: "No projectApiKey available for selected project." });
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(value);
+    projectApiKeyHint.textContent = "Copied projectApiKey to clipboard.";
+  } catch (error) {
+    renderResponse({ message: "Unable to copy projectApiKey. Copy manually from field." });
   }
 });
 
@@ -308,6 +340,8 @@ onAuthStateChanged(auth, async (user) => {
     selectedProjectId = "";
     cachedProjects = [];
     renderProjectSelector([]);
+    projectApiKeyField.value = "";
+    projectApiKeyHint.textContent = "";
     return;
   }
 

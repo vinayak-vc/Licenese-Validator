@@ -488,10 +488,12 @@ Setup:
 4. Serve locally (example):
    - `npx serve admin-panel`
 5. Login with Firebase Auth admin user and use:
+   - Create/select project
    - Add new client trial
    - Revoke trial immediately
    - Extend trial duration
    - List/search registered clients
+   - View/copy selected project's `projectApiKey`
    - Use row action buttons (`+7d`, `Revoke`) directly from table
 
 ### How to run in Postman
@@ -581,11 +583,24 @@ Request:
 }
 ```
 
-Response includes `projectId` and one-time `projectApiKey`.
+Response includes `projectId` and `projectApiKey`.
 
 ### GET `/adminApi/projects`
 
-Lists all projects.
+Lists all projects and includes `projectApiKey` (admin-only endpoint).
+
+Example project item:
+
+```json
+{
+  "projectId": "abc123def456",
+  "name": "Mining Simulator",
+  "description": "Trial licensing",
+  "active": true,
+  "apiKeyPreview": "ab12cd...9f0e",
+  "projectApiKey": "full-project-api-key"
+}
+```
 
 ### GET `/adminApi/projects/{projectId}/clients`
 

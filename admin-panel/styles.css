@@ -58,6 +58,16 @@ body {
   align-items: center;
 }
 
+.inline-actions input {
+  flex: 1;
+  margin: 0;
+}
+
+.inline-actions button {
+  width: auto;
+  white-space: nowrap;
+}
+
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));

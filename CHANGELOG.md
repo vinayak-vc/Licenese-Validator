@@ -239,3 +239,17 @@
 - Updated local Postman environment:
   - `postman/Trial-Licensing-Local.postman_environment.json`
   - Added `adminBaseUrl`, `projectApiKey`, `projectId`, and `adminIdToken` variables
+
+### Updated
+
+- Admin project visibility enhancements:
+  - `adminCreateProject` now persists project `apiKey` in project document for admin retrieval.
+  - `adminListProjects` now returns `projectApiKey` for each project (admin-only API).
+- Admin panel enhancements:
+  - Added `projectApiKey` display field for selected project.
+  - Added "Copy" action to copy selected project's `projectApiKey` to clipboard.
+  - Added contextual hint for legacy projects that do not have a stored `projectApiKey`.
+- Updated `README.md`:
+  - Clarified that `projectApiKey` is visible via admin projects endpoint.
+  - Added project item response example with `projectApiKey`.
+  - Documented admin panel ability to view/copy `projectApiKey`.
