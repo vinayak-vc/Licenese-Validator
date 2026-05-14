@@ -25,7 +25,7 @@
     "singleProjectMode": true
   },
   "hosting": {
-    "public": "admin-panel",
+    "public": "admin-panel/dist",
     "ignore": [
       "firebase.json",
       "**/.*",

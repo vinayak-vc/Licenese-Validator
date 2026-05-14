@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Users, Settings, TerminalSquare, LogOut, ChevronDown, Cpu, Plus } from 'lucide-react';
+import { LayoutDashboard, Users, Settings, TerminalSquare, LogOut, ChevronDown, Cpu, Plus, Search } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useProject } from '../../context/ProjectContext';
 import { cn } from '../../lib/utils';
@@ -11,6 +11,26 @@ export function Sidebar() {
   const { projects, selectedProjectId, setSelectedProjectId, refreshProjects } = useProject();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const triggerWave = () => {
+    const wave = document.createElement('div');
+    wave.className = 'nexus-wave-element';
+    document.body.appendChild(wave);
+    
+    // Auto cleanup after animation finishes (duration is 1s)
+    setTimeout(() => {
+      if (document.body.contains(wave)) {
+        wave.remove();
+      }
+    }, 1200);
+  };
+
+  const filteredProjects = useMemo(() => {
+    return projects.filter(p => 
+      p.name.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [projects, searchTerm]);
 
   const navLinks = [
     { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
@@ -58,25 +78,45 @@ export function Sidebar() {
           </button>
 
           {dropdownOpen && (
-            <div className="absolute top-full left-0 w-full mt-1 bg-slate-950 border border-slate-800 rounded-md shadow-xl z-50 max-h-60 overflow-y-auto">
-              {projects.length === 0 ? (
-                <div className="p-2 text-sm text-slate-500">No projects</div>
-              ) : (
-                projects.map((p) => (
-                  <button
-                    key={p.projectId}
-                    className={cn('w-full text-left px-3 py-2 text-sm hover:bg-slate-800', {
-                      'bg-slate-800 text-indigo-400': p.projectId === selectedProjectId
-                    })}
-                    onClick={() => {
-                      setSelectedProjectId(p.projectId);
-                      setDropdownOpen(false);
+            <div className="absolute top-full left-0 w-full mt-1 bg-slate-950 border border-slate-800 rounded-md shadow-xl z-50 flex flex-col overflow-hidden">
+              <div className="p-2 border-b border-slate-800 bg-slate-900/50">
+                <div className="relative">
+                  <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500" />
+                  <input
+                    type="text"
+                    placeholder="Search projects..."
+                    className="w-full bg-slate-950 border border-slate-800 rounded px-8 py-1.5 text-xs text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-cyan-500/50 transition-colors"
+                    value={searchTerm}
+                    onChange={(e) => {
+                      setSearchTerm(e.target.value);
+                      triggerWave();
                     }}
-                  >
-                    {p.name}
-                  </button>
-                ))
-              )}
+                    autoFocus
+                  />
+                </div>
+              </div>
+              
+              <div className="max-h-60 overflow-y-auto">
+                {filteredProjects.length === 0 ? (
+                  <div className="p-3 text-xs text-slate-500 italic text-center">No projects found</div>
+                ) : (
+                  filteredProjects.map((p) => (
+                    <button
+                      key={p.projectId}
+                      className={cn('w-full text-left px-3 py-2.5 text-sm hover:bg-slate-800 transition-colors', {
+                        'bg-slate-800/50 text-cyan-400 font-bold border-l-2 border-cyan-500': p.projectId === selectedProjectId
+                      })}
+                      onClick={() => {
+                        setSelectedProjectId(p.projectId);
+                        setDropdownOpen(false);
+                        setSearchTerm('');
+                      }}
+                    >
+                      {p.name}
+                    </button>
+                  ))
+                )}
+              </div>
             </div>
           )}
         </div>
