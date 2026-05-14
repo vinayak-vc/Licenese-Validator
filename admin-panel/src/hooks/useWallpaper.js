@@ -31,8 +31,12 @@ export function useWallpaper() {
         return res.json();
       })
       .then(data => {
-        const pickedUrl = data?.urls?.full || data?.urls?.regular || data?.urls?.raw || "";
+        let pickedUrl = data?.urls?.raw || data?.urls?.full || data?.urls?.regular || "";
         if (pickedUrl) {
+          // If it's a raw URL, append optimization params for high-res desktop
+          if (pickedUrl.includes('images.unsplash.com')) {
+            pickedUrl += "&w=2560&q=85&auto=format&fit=crop";
+          }
           setWallpaperUrl(pickedUrl);
           localStorage.setItem(dateKey, today);
           localStorage.setItem(urlKey, pickedUrl);
