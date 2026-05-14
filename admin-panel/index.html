@@ -1,120 +1,13 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Trial Licensing Admin Panel</title>
-    <link rel="stylesheet" href="./styles.css" />
+    <title>admin-panel</title>
   </head>
   <body>
-    <main class="app-shell">
-      <header class="title-bar">
-        <div class="title-center">
-          <h1>Trial Licensing Control</h1>
-          <p>Project operations and client trial management</p>
-        </div>
-        <button id="logoutBtn" class="secondary small hidden">Logout</button>
-      </header>
-
-      <div id="feedbackBar" class="feedback hidden" role="status" aria-live="polite"></div>
-
-      <section class="workspace">
-        <aside class="left-pane">
-          <section class="card login-card" id="authCard">
-            <h2>Admin Login</h2>
-            <label>Email</label>
-            <input id="email" type="email" placeholder="admin@example.com" />
-            <label>Password</label>
-            <input id="password" type="password" placeholder="********" />
-            <button id="loginBtn">Login</button>
-            <p id="authStatus" class="muted"></p>
-          </section>
-
-          <section class="card hidden" id="panelCard">
-            <div class="selected-project">
-              <p class="selected-label">Selected Project</p>
-              <h2 id="selectedProjectName">No project selected</h2>
-              <p id="selectedProjectMeta" class="muted">[project-id]</p>
-            </div>
-
-            <div class="actions-grid">
-              <details class="panel-block" id="createProjectPanel">
-                <summary>Create Project</summary>
-                <form id="createProjectForm" class="panel-body">
-                  <input id="projectName" placeholder="Project name" required />
-                  <input id="projectDescription" placeholder="Project description" />
-                  <button type="submit">Create Project</button>
-                </form>
-              </details>
-
-              <details class="panel-block" id="selectProjectPanel" open>
-                <summary>Select Project</summary>
-                <div class="panel-body">
-                  <select id="projectSelect"></select>
-                  <div class="inline-actions">
-                    <button id="refreshProjectsBtn" type="button" class="secondary">Refresh</button>
-                    <button id="copyProjectApiKeyBtn" type="button" class="secondary">Copy API Key</button>
-                  </div>
-                  <label>Project API Key</label>
-                  <input id="projectApiKeyField" readonly placeholder="Project API key appears here" />
-                  <p id="projectApiKeyHint" class="muted"></p>
-                </div>
-              </details>
-
-              <details class="panel-block" id="addClientPanel">
-                <summary>Add New Client</summary>
-                <form id="createClientForm" class="panel-body">
-                  <input id="createDeviceId" placeholder="deviceId" required />
-                  <input id="createOs" placeholder="OS" required />
-                  <input id="createCpu" placeholder="CPU" required />
-                  <input id="createGpu" placeholder="GPU" required />
-                  <input id="createDays" type="number" min="1" max="365" value="7" />
-                  <button type="submit">Create Client Trial</button>
-                </form>
-              </details>
-
-              <details class="panel-block" id="extendPanel" open>
-                <summary>Extend Trial</summary>
-                <form id="extendForm" class="panel-body">
-                  <input id="extendDeviceId" placeholder="deviceId" required />
-                  <input id="extendDays" type="number" min="1" max="365" value="7" required />
-                  <button type="submit">Extend Trial</button>
-                </form>
-              </details>
-
-              <details class="panel-block" id="revokePanel" open>
-                <summary>Revoke Trial</summary>
-                <form id="revokeForm" class="panel-body">
-                  <input id="revokeDeviceId" placeholder="deviceId" required />
-                  <button type="submit" class="danger">Revoke Now</button>
-                </form>
-              </details>
-            </div>
-          </section>
-        </aside>
-
-        <section class="right-pane">
-          <section class="card hidden" id="clientsCard">
-            <div class="clients-head">
-              <h2>Registered Clients</h2>
-              <div class="inline-actions">
-                <input id="searchInput" placeholder="Search deviceId..." />
-                <button id="refreshBtn" class="secondary">Refresh</button>
-              </div>
-            </div>
-            <div id="clientCards" class="client-cards">
-              <div class="empty-card">Select a project to load clients.</div>
-            </div>
-          </section>
-        </section>
-      </section>
-
-      <footer class="status-bar">
-        <span class="muted">Server Time:</span>
-        <strong id="serverTimeText">--</strong>
-      </footer>
-    </main>
-
-    <script type="module" src="./app.js"></script>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
