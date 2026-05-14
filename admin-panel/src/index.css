@@ -63,3 +63,20 @@
   animation: nexus-scan 1s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
+@keyframes nexus-unfold {
+  0% { 
+    transform: perspective(2000px) rotateY(-20deg) scaleX(0.95) translateX(-5%); 
+    opacity: 0; 
+    filter: brightness(0.5) blur(4px);
+  }
+  100% { 
+    transform: perspective(2000px) rotateY(0deg) scaleX(1) translateX(0); 
+    opacity: 1; 
+    filter: brightness(1) blur(0);
+  }
+}
+
+.nexus-page-unfold {
+  transform-origin: left center;
+  animation: nexus-unfold 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}

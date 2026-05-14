@@ -1,4 +1,4 @@
-import { Outlet, Navigate } from 'react-router-dom';
+import { Outlet, Navigate, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { useAuth } from '../../context/AuthContext';
@@ -10,6 +10,7 @@ export function Layout() {
   const { user, loading } = useAuth();
   const wallpaperUrl = useWallpaper();
   const fact = useFact();
+  const location = useLocation();
 
   if (loading) {
     return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-400">Loading...</div>;
@@ -37,7 +38,7 @@ export function Layout() {
         <Sidebar />
         <div className="flex-1 ml-64 flex flex-col h-screen">
           <Header />
-          <main className="flex-1 overflow-y-auto p-8">
+          <main key={location.key} className="flex-1 overflow-y-auto p-8 nexus-page-unfold">
             <Outlet />
           </main>
 
