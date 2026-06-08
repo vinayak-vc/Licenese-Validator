@@ -165,26 +165,131 @@ function validateStartTrialInput(payload) {
   };
 }
 
+// Returns trimmed string clamped to maxLength, or undefined when absent/blank.
+function sanitizeString(value, maxLength = 256) {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  if (trimmed.length === 0) {
+    return undefined;
+  }
+  return trimmed.slice(0, maxLength);
+}
+
+// Returns a finite number clamped to [min, max], or undefined when not numeric.
+function sanitizeNumber(value, { min = -1e12, max = 1e12 } = {}) {
+  const num = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(num)) {
+    return undefined;
+  }
+  return Math.min(max, Math.max(min, num));
+}
+
+// Group schema: maps output field -> { type, max }. Unknown payload keys are dropped.
+const SYSTEM_INFO_SCHEMA = {
+  application: {
+    productName: { type: "string", max: 256 },
+    unityVersion: { type: "string", max: 64 },
+    appVersion: { type: "string", max: 64 },
+    platform: { type: "string", max: 64 },
+    installMode: { type: "string", max: 64 },
+    sandboxType: { type: "string", max: 64 },
+    buildGUID: { type: "string", max: 128 },
+  },
+  device: {
+    deviceName: { type: "string", max: 256 },
+    deviceModel: { type: "string", max: 256 },
+    deviceType: { type: "string", max: 64 },
+    deviceUniqueIdentifier: { type: "string", max: 256 },
+  },
+  hardware: {
+    cpu: { type: "string", max: 256 },
+    cores: { type: "number", min: 0, max: 4096 },
+    frequency: { type: "number", min: 0, max: 1e7 },
+    systemRam: { type: "number", min: 0, max: 1e9 },
+    gpu: { type: "string", max: 256 },
+    graphicsMemory: { type: "number", min: 0, max: 1e9 },
+    graphicsApi: { type: "string", max: 128 },
+  },
+  display: {
+    resolution: { type: "string", max: 64 },
+    windowSize: { type: "string", max: 64 },
+    fullscreenMode: { type: "string", max: 64 },
+    dpi: { type: "number", min: 0, max: 1e5 },
+  },
+  runtime: {
+    targetFps: { type: "number", min: -1, max: 1e6 },
+    vSyncCount: { type: "number", min: 0, max: 16 },
+    qualityLevel: { type: "string", max: 128 },
+    country: { type: "string", max: 128 },
+    generatedOn: { type: "string", max: 64 },
+  },
+};
+
+// Legacy clients send flat { os, cpu, gpu }. Lift those into the nested shape
+// so old payloads keep validating after the expansion.
+function normalizeLegacySystemInfo(systemInfo) {
+  const isNested = ["application", "device", "hardware", "display", "runtime"].some(
+    (group) => systemInfo[group] && typeof systemInfo[group] === "object"
+  );
+  if (isNested) {
+    return systemInfo;
+  }
+
+  const normalized = { ...systemInfo, hardware: { ...(systemInfo.hardware || {}) } };
+  if (systemInfo.cpu !== undefined && normalized.hardware.cpu === undefined) {
+    normalized.hardware.cpu = systemInfo.cpu;
+  }
+  if (systemInfo.gpu !== undefined && normalized.hardware.gpu === undefined) {
+    normalized.hardware.gpu = systemInfo.gpu;
+  }
+  if (systemInfo.os !== undefined) {
+    normalized.application = { platform: systemInfo.os, ...(systemInfo.application || {}) };
+  }
+  return normalized;
+}
+
 function validateSystemInfo(systemInfo) {
   if (!systemInfo || typeof systemInfo !== "object") {
     throw new TrialServiceError("Invalid systemInfo", 400, CODES.INVALID_SYSTEM_INFO, "INVALID_SYSTEM_INFO");
   }
 
-  const { os, cpu, gpu } = systemInfo;
-  if (!isNonEmptyString(os, 256) || !isNonEmptyString(cpu, 256) || !isNonEmptyString(gpu, 256)) {
+  const source = normalizeLegacySystemInfo(systemInfo);
+  const result = {};
+
+  for (const [groupName, fields] of Object.entries(SYSTEM_INFO_SCHEMA)) {
+    const groupSource = source[groupName];
+    if (!groupSource || typeof groupSource !== "object") {
+      continue;
+    }
+    const groupOut = {};
+    for (const [field, spec] of Object.entries(fields)) {
+      const raw = groupSource[field];
+      const value =
+        spec.type === "number"
+          ? sanitizeNumber(raw, { min: spec.min, max: spec.max })
+          : sanitizeString(raw, spec.max);
+      if (value !== undefined) {
+        groupOut[field] = value;
+      }
+    }
+    if (Object.keys(groupOut).length > 0) {
+      result[groupName] = groupOut;
+    }
+  }
+
+  // Required: hardware.cpu and hardware.gpu (present in both legacy + new payloads).
+  if (!result.hardware || !result.hardware.cpu || !result.hardware.gpu) {
     throw new TrialServiceError(
-      "systemInfo.os, systemInfo.cpu, and systemInfo.gpu are required",
+      "systemInfo.hardware.cpu and systemInfo.hardware.gpu are required",
       400,
       CODES.INVALID_SYSTEM_INFO_FIELDS,
       "INVALID_SYSTEM_INFO_FIELDS"
     );
   }
 
-  return {
-    os: os.trim(),
-    cpu: cpu.trim(),
-    gpu: gpu.trim(),
-  };
+  return result;
 }
 
 function validateVerifyTrialInput(payload) {

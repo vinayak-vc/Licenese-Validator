@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { useProject } from '../context/ProjectContext';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { api } from '../lib/api';
+import { readSystemInfo, countryToFlag } from '../lib/systemInfo';
 import { Cpu, HardDrive, Monitor, PieChart, BarChart3, Globe } from 'lucide-react';
 
 export function HardwareInsights() {
@@ -29,25 +30,32 @@ export function HardwareInsights() {
     const os = {};
     const cpu = {};
     const gpu = {};
-    
+    const country = {};
+
     clients.forEach(c => {
-      const osVal = c.systemInfo?.os || 'Unknown';
-      const cpuVal = c.systemInfo?.cpu || 'Unknown';
-      const gpuVal = c.systemInfo?.gpu || 'Unknown';
-      
+      const info = readSystemInfo(c.systemInfo);
+      const osVal = info.os || 'Unknown';
+      const cpuVal = info.cpu || 'Unknown';
+      const gpuVal = info.gpu || 'Unknown';
+      const countryVal = (info.country || '').replace(/\s*\(local\)\s*$/i, '').trim() || 'Unknown';
+
       os[osVal] = (os[osVal] || 0) + 1;
       cpu[cpuVal] = (cpu[cpuVal] || 0) + 1;
       gpu[gpuVal] = (gpu[gpuVal] || 0) + 1;
+      country[countryVal] = (country[countryVal] || 0) + 1;
     });
 
-    const sort = (obj) => Object.entries(obj).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    const sort = (obj, n = 5) => Object.entries(obj).sort((a, b) => b[1] - a[1]).slice(0, n);
 
     return {
       os: sort(os),
       cpu: sort(cpu),
       gpu: sort(gpu),
+      country: sort(country, 8),
     };
   }, [clients]);
+
+  const hasCountryData = distribution.country.some(([name]) => name !== 'Unknown');
 
   if (!selectedProjectId) {
     return (
@@ -150,12 +158,39 @@ export function HardwareInsights() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-         <Card className="bg-slate-950 border-slate-800 p-8 flex flex-col items-center justify-center text-center">
-            <div className="w-16 h-16 rounded-3xl bg-slate-900 flex items-center justify-center mb-6">
-               <Globe size={32} className="text-slate-700" />
-            </div>
-            <h4 className="text-lg font-bold text-slate-100 mb-2">Geographic Insights</h4>
-            <p className="text-sm text-slate-500 max-w-xs">Global IP-to-location mapping is currently being indexed for this project.</p>
+         <Card className="bg-slate-900/50 border-slate-800 shadow-xl">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
+                <Globe size={14} className="text-sky-500" />
+                Geographic Insights
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {!hasCountryData ? (
+                <p className="text-xs text-slate-600 italic py-4">No geographic telemetry reported yet.</p>
+              ) : (
+                distribution.country.map(([name, count]) => {
+                  const flag = name === 'Unknown' ? null : countryToFlag(name);
+                  return (
+                    <div key={name} className="space-y-1.5">
+                      <div className="flex justify-between text-xs font-bold">
+                        <span className="text-slate-200 truncate pr-4 flex items-center gap-1.5" title={name}>
+                          {flag?.flag && <span className="text-sm leading-none">{flag.flag}</span>}
+                          {name}
+                        </span>
+                        <span className="text-slate-500 shrink-0">{count}</span>
+                      </div>
+                      <div className="h-1.5 w-full bg-slate-950 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-sky-500 shadow-[0_0_10px_rgba(14,165,233,0.5)] transition-all duration-1000"
+                          style={{ width: `${(count / clients.length) * 100}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </CardContent>
          </Card>
          
          <Card className="bg-slate-950 border-slate-800 p-8 flex flex-col items-center justify-center text-center">

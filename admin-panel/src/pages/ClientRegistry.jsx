@@ -11,6 +11,8 @@ import { useToast } from '../context/ToastContext';
 import { api, getServerTime } from '../lib/api';
 import { Button } from '../components/ui/Button';
 import { cn } from '../lib/utils';
+import { readSystemInfo, countryToFlag } from '../lib/systemInfo';
+import { ClientDetailModal } from '../components/ClientDetailModal';
 
 function StatusPill({ status, trialEnd }) {
   const now = getServerTime();
@@ -53,6 +55,7 @@ export function ClientRegistry() {
   const [selectedRows, setSelectedRows] = useState(new Set());
   const [confirmRevoke, setConfirmRevoke] = useState(null);
   const [revokeReasonOpen, setRevokeReasonOpen] = useState(null);
+  const [detailClient, setDetailClient] = useState(null);
 
   const loadClients = async () => {
     if (!selectedProjectId) return;
@@ -130,12 +133,15 @@ export function ClientRegistry() {
   const handleExport = () => {
     const rows = clients.filter(c => selectedRows.size === 0 || selectedRows.has(c.deviceId));
     const csv = [
-      ['Device ID', 'Status', 'IP', 'OS', 'CPU', 'Trial End'],
-      ...rows.map(c => [
-        c.deviceId, c.status, c.ip || '', c.systemInfo?.os || '', 
-        c.systemInfo?.cpu || '', new Date(Number(c.trialEnd)).toISOString()
-      ])
-    ].map(r => r.join(',')).join('\n');
+      ['Device ID', 'Device Name', 'Country', 'Status', 'IP', 'OS', 'CPU', 'GPU', 'Trial End'],
+      ...rows.map(c => {
+        const info = readSystemInfo(c.systemInfo);
+        return [
+          c.deviceId, info.deviceName, info.country, c.status, c.ip || '',
+          info.os, info.cpu, info.gpu, new Date(Number(c.trialEnd)).toISOString()
+        ];
+      })
+    ].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
     
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
@@ -224,23 +230,27 @@ export function ClientRegistry() {
                   const now = getServerTime();
                   const isSelected = selectedRows.has(client.deviceId);
                   const hasCollision = ipCollisions[client.ip];
+                  const info = readSystemInfo(client.systemInfo);
+                  const flag = countryToFlag(info.country);
+                  const displayName = info.deviceName || client.deviceId;
 
                   const relativeTime = trialEndMs > now
                     ? `Expires in ${formatDistanceToNow(trialEndMs)}`
                     : `Expired ${formatDistanceToNow(trialEndMs)} ago`;
 
                   return (
-                    <tr 
-                      key={client.deviceId} 
+                    <tr
+                      key={client.deviceId}
+                      onClick={() => setDetailClient(client)}
                       className={cn(
-                        "group transition-all duration-200",
+                        "group transition-all duration-200 cursor-pointer",
                         isSelected ? "bg-cyan-500/5" : "hover:bg-slate-800/30",
                         client.isStaff && "opacity-40 grayscale-[0.5]"
                       )}
                     >
-                      <td className="px-6 py-4">
-                        <input 
-                          type="checkbox" 
+                      <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
                           checked={isSelected}
                           onChange={() => toggleRow(client.deviceId)}
                           className="rounded border-slate-800 bg-slate-950 text-cyan-600 focus:ring-cyan-500/20"
@@ -248,8 +258,9 @@ export function ClientRegistry() {
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex flex-col">
-                          <span className="font-mono text-slate-200 font-bold tracking-tight truncate max-w-[140px]" title={client.deviceId}>
-                            {client.deviceId}
+                          <span className="flex items-center gap-1.5 text-slate-200 font-bold tracking-tight truncate max-w-[180px]" title={info.deviceName ? `${info.deviceName} • ${client.deviceId}` : client.deviceId}>
+                            {flag?.flag && <span className="text-sm leading-none shrink-0">{flag.flag}</span>}
+                            <span className={cn("truncate", !info.deviceName && "font-mono")}>{displayName}</span>
                           </span>
                           <div className="flex items-center gap-2 mt-1">
                             <span className="text-[10px] text-slate-500 font-mono tracking-tighter">
@@ -272,12 +283,12 @@ export function ClientRegistry() {
                       <td className="px-6 py-4 relative overflow-visible">
                         <div className="flex justify-center">
                           <div className="relative group/hw inline-flex items-center text-slate-500 hover:text-cyan-400 transition-colors p-2 rounded-lg hover:bg-cyan-500/5 ring-1 ring-transparent hover:ring-cyan-500/20 cursor-help">
-                            <OsIcon os={client.systemInfo?.os} />
+                            <OsIcon os={info.os} />
                             <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-3 hidden group-hover/hw:block w-72 bg-slate-950 border border-slate-800 shadow-2xl rounded-xl p-4 z-[9999] pointer-events-none ring-1 ring-white/10">
                               <div className="space-y-3">
                                 <div className="flex items-center justify-between border-b border-slate-800 pb-2">
                                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Hardware Metrics</span>
-                                   <OsIcon os={client.systemInfo?.os} />
+                                   <OsIcon os={info.os} />
                                 </div>
                                 <div className="space-y-2 text-left">
                                   <div className="flex items-start gap-3">
@@ -286,7 +297,7 @@ export function ClientRegistry() {
                                     </div>
                                     <div className="flex-1 min-w-0">
                                       <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Processor</p>
-                                      <p className="text-xs font-medium text-slate-200 truncate">{client.systemInfo?.cpu || 'Standard Compute Node'}</p>
+                                      <p className="text-xs font-medium text-slate-200 truncate">{info.cpu || 'Standard Compute Node'}</p>
                                     </div>
                                   </div>
                                   <div className="flex items-start gap-3">
@@ -295,10 +306,11 @@ export function ClientRegistry() {
                                     </div>
                                     <div className="flex-1 min-w-0">
                                       <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">GPU Engine</p>
-                                      <p className="text-xs font-medium text-slate-200 truncate">{client.systemInfo?.gpu || 'Integrated Silicon'}</p>
+                                      <p className="text-xs font-medium text-slate-200 truncate">{info.gpu || 'Integrated Silicon'}</p>
                                     </div>
                                   </div>
                                 </div>
+                                <p className="text-[9px] text-slate-600 text-center pt-1 border-t border-slate-800">Click row for full telemetry</p>
                               </div>
                             </div>
                           </div>
@@ -317,7 +329,7 @@ export function ClientRegistry() {
                           </span>
                         </div>
                       </td>
-                      <td className="px-6 py-4 text-right">
+                      <td className="px-6 py-4 text-right" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-2">
                           <Button 
                             size="icon" 
@@ -434,6 +446,10 @@ export function ClientRegistry() {
             </button>
           </div>
         </div>
+      )}
+
+      {detailClient && (
+        <ClientDetailModal client={detailClient} onClose={() => setDetailClient(null)} />
       )}
     </div>
   );
