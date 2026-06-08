@@ -59,6 +59,7 @@ export const api = {
     callAdmin('GET', `/projects/${encodeURIComponent(projectId)}/clients?limit=200&search=${encodeURIComponent(search)}`),
   createProject: (data) => callAdmin('POST', '/createProject', data),
   createClient: (data) => callAdmin('POST', '/createClient', data),
+  updateClient: (data) => callAdmin('POST', '/updateClient', data),
   extendTrial: (data) => callAdmin('POST', '/extendTrial', data),
   revokeTrial: (data) => callAdmin('POST', '/revokeTrial', data),
 };

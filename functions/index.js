@@ -15,6 +15,7 @@ const {
   adminListProjectClients,
   adminListProjects,
   adminRevokeTrial,
+  adminUpdateClientSystemInfo,
   startTrial,
   verifyTrial,
 } = require("./trialService");
@@ -202,6 +203,17 @@ adminApp.post("/createClient", async (req, res) => {
 adminApp.post("/createProject", async (req, res) => {
   try {
     const result = await adminCreateProject(req.body, {
+      adminUser: req.adminUser,
+    });
+    return res.status(200).json(result);
+  } catch (error) {
+    return sendError(res, error);
+  }
+});
+
+adminApp.post("/updateClient", async (req, res) => {
+  try {
+    const result = await adminUpdateClientSystemInfo(req.body, {
       adminUser: req.adminUser,
     });
     return res.status(200).json(result);

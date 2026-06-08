@@ -449,7 +449,15 @@ export function ClientRegistry() {
       )}
 
       {detailClient && (
-        <ClientDetailModal client={detailClient} onClose={() => setDetailClient(null)} />
+        <ClientDetailModal
+          client={detailClient}
+          projectId={selectedProjectId}
+          onClose={() => setDetailClient(null)}
+          onSaved={(updated) => {
+            setDetailClient(updated);
+            setClients((prev) => prev.map((c) => (c.deviceId === updated.deviceId ? updated : c)));
+          }}
+        />
       )}
     </div>
   );

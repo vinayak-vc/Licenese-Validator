@@ -15,7 +15,8 @@ export function Header() {
   }, []);
 
   return (
-    <header className="h-20 border-b border-slate-800 bg-slate-900/40 backdrop-blur-md flex items-center justify-between px-8 sticky top-0 z-40 transition-all duration-300">
+    <header className="relative h-20 border-b border-slate-800 bg-slate-900/40 backdrop-blur-md flex items-center justify-between px-8 sticky top-0 z-40 transition-all duration-300">
+      <div className="nexus-wave-bar wave-ltr absolute -bottom-[3px] left-0 right-0 z-50" />
       <div className="flex items-center gap-4">
         <div className="flex items-center gap-2">
            <div className="w-2 h-2 rounded-full bg-cyan-500 shadow-[0_0_8px_rgba(6,182,212,0.6)] animate-pulse" />

@@ -44,7 +44,8 @@ export function Layout() {
 
           {/* Persistent Intel (Facts) Footer */}
           {fact && (
-            <div className="mt-auto px-8 py-3 border-t border-slate-800/50 flex items-center justify-between group cursor-default bg-slate-900/40 backdrop-blur-md">
+            <div className="relative mt-auto px-8 py-3 border-t border-slate-800/50 flex items-center justify-between group cursor-default bg-slate-900/40 backdrop-blur-md">
+              <div className="nexus-wave-bar wave-rtl absolute -top-[3px] left-0 right-0 z-50" />
               <div className="flex items-center gap-3 max-w-[80%]">
                 <div className="w-8 h-8 rounded-lg bg-cyan-500/5 border border-cyan-500/10 flex items-center justify-center shrink-0 group-hover:border-cyan-500/30 transition-colors">
                   <Info size={14} className="text-cyan-500/50 group-hover:text-cyan-400" />

@@ -80,3 +80,37 @@
   transform-origin: left center;
   animation: nexus-unfold 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
+
+/* Flowing sine-wave line for header (LTR) / footer (RTL) edges */
+@keyframes nexus-wave-ltr {
+  from { background-position-x: 0; }
+  to { background-position-x: 80px; }
+}
+@keyframes nexus-wave-rtl {
+  from { background-position-x: 0; }
+  to { background-position-x: -80px; }
+}
+
+.nexus-wave-bar {
+  height: 6px;
+  width: 100%;
+  pointer-events: none;
+  background-repeat: repeat-x;
+  background-size: 80px 6px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='6' viewBox='0 0 80 6'%3E%3Cpath d='M0 3 Q 20 0 40 3 T 80 3' fill='none' stroke='%2306b6d4' stroke-width='1.3'/%3E%3C/svg%3E");
+  opacity: 0.7;
+  /* Fade out toward both ends */
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 15%, #000 85%, transparent);
+  mask-image: linear-gradient(to right, transparent, #000 15%, #000 85%, transparent);
+}
+
+.nexus-wave-bar.wave-ltr {
+  animation: nexus-wave-ltr 2.5s linear infinite;
+}
+.nexus-wave-bar.wave-rtl {
+  animation: nexus-wave-rtl 2.5s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nexus-wave-bar { animation: none; }
+}

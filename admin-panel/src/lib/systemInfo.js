@@ -84,6 +84,37 @@ const GROUP_TITLES = {
   runtime: 'Runtime',
 };
 
+// Field types for the admin edit form. Mirrors the backend SYSTEM_INFO_SCHEMA.
+const FIELD_TYPES = {
+  application: {},
+  device: {},
+  hardware: { cores: 'number', frequency: 'number', systemRam: 'number', graphicsMemory: 'number' },
+  display: { dpi: 'number' },
+  runtime: { targetFps: 'number', vSyncCount: 'number' },
+};
+
+// Form descriptor: ordered groups + fields with labels and input types.
+export const SYSTEM_INFO_FORM = GROUP_KEYS.map((key) => ({
+  key,
+  title: GROUP_TITLES[key],
+  fields: Object.entries(FIELD_LABELS[key]).map(([name, label]) => ({
+    name,
+    label,
+    type: FIELD_TYPES[key]?.[name] || 'text',
+  })),
+}));
+
+// Convert either shape into nested groups with raw values (for form prefill).
+export function toNested(si) {
+  const s = si || {};
+  if (isNested(s)) return s;
+  const out = {};
+  if (s.cpu) out.hardware = { ...(out.hardware || {}), cpu: s.cpu };
+  if (s.gpu) out.hardware = { ...(out.hardware || {}), gpu: s.gpu };
+  if (s.os) out.application = { platform: s.os };
+  return out;
+}
+
 // Returns [{ key, title, fields: [{label, value}] }] for whatever data exists.
 // Legacy flat records collapse into a single "Hardware" group.
 export function groupSystemInfo(si) {

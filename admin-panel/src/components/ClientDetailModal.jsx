@@ -1,6 +1,9 @@
-import { useEffect } from 'react';
-import { X, Cpu, HardDrive, Monitor, Smartphone, Boxes, Clock, MapPin } from 'lucide-react';
-import { groupSystemInfo, readSystemInfo, countryToFlag } from '../lib/systemInfo';
+import { useEffect, useState } from 'react';
+import { X, Cpu, HardDrive, Monitor, Smartphone, Boxes, Clock, MapPin, Pencil, Save, Loader2 } from 'lucide-react';
+import { groupSystemInfo, readSystemInfo, countryToFlag, SYSTEM_INFO_FORM, toNested } from '../lib/systemInfo';
+import { api } from '../lib/api';
+import { useToast } from '../context/ToastContext';
+import { Button } from './ui/Button';
 import { cn } from '../lib/utils';
 
 const GROUP_ICON = {
@@ -12,7 +15,40 @@ const GROUP_ICON = {
   system: HardDrive,
 };
 
-export function ClientDetailModal({ client, onClose }) {
+// Build the editable form model { 'group.field': stringValue } from systemInfo.
+function buildFormState(systemInfo) {
+  const nested = toNested(systemInfo);
+  const state = {};
+  for (const group of SYSTEM_INFO_FORM) {
+    for (const field of group.fields) {
+      const value = nested[group.key]?.[field.name];
+      state[`${group.key}.${field.name}`] = value === undefined || value === null ? '' : String(value);
+    }
+  }
+  return state;
+}
+
+// Collapse the form model back into a nested systemInfo payload, dropping blanks.
+function formStateToPayload(form) {
+  const payload = {};
+  for (const group of SYSTEM_INFO_FORM) {
+    for (const field of group.fields) {
+      const raw = form[`${group.key}.${field.name}`];
+      if (raw === undefined || raw === null || String(raw).trim() === '') continue;
+      const value = field.type === 'number' ? Number(raw) : String(raw).trim();
+      if (field.type === 'number' && !Number.isFinite(value)) continue;
+      payload[group.key] = { ...(payload[group.key] || {}), [field.name]: value };
+    }
+  }
+  return payload;
+}
+
+export function ClientDetailModal({ client, projectId, onClose, onSaved }) {
+  const { addToast } = useToast();
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({});
+
   useEffect(() => {
     const onKey = (e) => {
       if (e.key === 'Escape') onClose();
@@ -27,6 +63,34 @@ export function ClientDetailModal({ client, onClose }) {
   const groups = groupSystemInfo(client.systemInfo);
   const flag = countryToFlag(country);
   const title = deviceName || client.deviceId;
+
+  const startEdit = () => {
+    setForm(buildFormState(client.systemInfo));
+    setEditing(true);
+  };
+
+  const handleField = (key, value) => {
+    setForm((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const handleSave = async () => {
+    const systemInfo = formStateToPayload(form);
+    if (Object.keys(systemInfo).length === 0) {
+      addToast('Nothing to save — add at least one value.', 'info');
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await api.updateClient({ projectId, deviceId: client.deviceId, systemInfo });
+      addToast(`Updated details for ${client.deviceId}`, 'success');
+      setEditing(false);
+      onSaved?.({ ...client, systemInfo: res.systemInfo || systemInfo });
+    } catch (error) {
+      addToast(`Failed to update: ${error.message}`, 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div
@@ -54,20 +118,64 @@ export function ClientDetailModal({ client, onClose }) {
               )}
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="shrink-0 p-2 rounded-lg text-slate-500 hover:text-slate-200 hover:bg-slate-800 transition-colors"
-            aria-label="Close"
-          >
-            <X size={18} />
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            {!editing && (
+              <Button size="sm" variant="secondary" className="gap-1.5 h-8" onClick={startEdit}>
+                <Pencil size={13} /> Add / Edit
+              </Button>
+            )}
+            <button
+              onClick={onClose}
+              className="p-2 rounded-lg text-slate-500 hover:text-slate-200 hover:bg-slate-800 transition-colors"
+              aria-label="Close"
+            >
+              <X size={18} />
+            </button>
+          </div>
         </div>
 
         {/* Body */}
         <div className="p-6 space-y-5 max-h-[60vh] overflow-y-auto">
-          {groups.length === 0 ? (
+          {editing ? (
+            <>
+              <p className="text-[11px] text-slate-500">
+                Fill any missing fields. Blank fields are left unchanged. Existing values are pre-filled.
+              </p>
+              {SYSTEM_INFO_FORM.map((group) => {
+                const Icon = GROUP_ICON[group.key] || HardDrive;
+                return (
+                  <div key={group.key} className="rounded-xl border border-slate-800 bg-slate-950/40 overflow-hidden">
+                    <div className="flex items-center gap-2 px-4 py-2.5 bg-slate-950/60 border-b border-slate-800">
+                      <Icon size={13} className="text-cyan-500" />
+                      <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
+                        {group.title}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-4">
+                      {group.fields.map((f) => {
+                        const key = `${group.key}.${f.name}`;
+                        return (
+                          <label key={key} className="flex flex-col gap-1">
+                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                              {f.label}
+                            </span>
+                            <input
+                              type={f.type === 'number' ? 'number' : 'text'}
+                              value={form[key] ?? ''}
+                              onChange={(e) => handleField(key, e.target.value)}
+                              className="bg-slate-950/70 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-100 focus:outline-none focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500/50 transition-all"
+                            />
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </>
+          ) : groups.length === 0 ? (
             <p className="text-sm text-slate-500 italic text-center py-8">
-              No system telemetry recorded for this node.
+              No system telemetry recorded for this node. Use <span className="text-slate-300 font-bold">Add / Edit</span> to enter details.
             </p>
           ) : (
             groups.map((group) => {
@@ -102,6 +210,19 @@ export function ClientDetailModal({ client, onClose }) {
             })
           )}
         </div>
+
+        {/* Footer (edit mode) */}
+        {editing && (
+          <div className="flex items-center justify-end gap-2 p-4 border-t border-slate-800">
+            <Button variant="ghost" size="sm" onClick={() => setEditing(false)} disabled={saving}>
+              Cancel
+            </Button>
+            <Button size="sm" className="gap-1.5" onClick={handleSave} disabled={saving}>
+              {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+              {saving ? 'Saving...' : 'Save Details'}
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );

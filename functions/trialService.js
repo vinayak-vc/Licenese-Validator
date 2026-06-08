@@ -14,6 +14,7 @@ const CODES = {
   TRIAL_STARTED: "1000",
   TRIAL_VERIFIED: "1001",
   ADMIN_CLIENT_CREATED: "1100",
+  ADMIN_CLIENT_UPDATED: "1104",
   ADMIN_TRIAL_REVOKED: "1101",
   ADMIN_TRIAL_EXTENDED: "1102",
   ADMIN_CLIENTS_LISTED: "1103",
@@ -250,9 +251,11 @@ function normalizeLegacySystemInfo(systemInfo) {
   return normalized;
 }
 
-function validateSystemInfo(systemInfo) {
+// Sanitize any (partial) systemInfo into the nested shape: clamps values,
+// drops unknown keys, omits empty groups. Does NOT enforce required fields.
+function sanitizePartialSystemInfo(systemInfo) {
   if (!systemInfo || typeof systemInfo !== "object") {
-    throw new TrialServiceError("Invalid systemInfo", 400, CODES.INVALID_SYSTEM_INFO, "INVALID_SYSTEM_INFO");
+    return {};
   }
 
   const source = normalizeLegacySystemInfo(systemInfo);
@@ -278,6 +281,33 @@ function validateSystemInfo(systemInfo) {
       result[groupName] = groupOut;
     }
   }
+
+  return result;
+}
+
+// Deep-merge per group: overlay `partial` fields onto `existing`. Both are run
+// through the sanitizer first, so the output is clean nested systemInfo.
+function mergeSystemInfo(existing, partial) {
+  const base = sanitizePartialSystemInfo(existing);
+  const overlay = sanitizePartialSystemInfo(partial);
+  const merged = {};
+
+  for (const groupName of Object.keys(SYSTEM_INFO_SCHEMA)) {
+    const combined = { ...(base[groupName] || {}), ...(overlay[groupName] || {}) };
+    if (Object.keys(combined).length > 0) {
+      merged[groupName] = combined;
+    }
+  }
+
+  return merged;
+}
+
+function validateSystemInfo(systemInfo) {
+  if (!systemInfo || typeof systemInfo !== "object") {
+    throw new TrialServiceError("Invalid systemInfo", 400, CODES.INVALID_SYSTEM_INFO, "INVALID_SYSTEM_INFO");
+  }
+
+  const result = sanitizePartialSystemInfo(systemInfo);
 
   // Required: hardware.cpu and hardware.gpu (present in both legacy + new payloads).
   if (!result.hardware || !result.hardware.cpu || !result.hardware.gpu) {
@@ -860,6 +890,46 @@ async function adminExtendTrial(payload) {
   });
 }
 
+async function adminUpdateClientSystemInfo(payload) {
+  const { deviceId, projectId } = validateAdminDeviceInput(payload);
+  if (!payload.systemInfo || typeof payload.systemInfo !== "object") {
+    throw new TrialServiceError("Invalid systemInfo", 400, CODES.INVALID_SYSTEM_INFO, "INVALID_SYSTEM_INFO");
+  }
+
+  const partial = sanitizePartialSystemInfo(payload.systemInfo);
+  if (Object.keys(partial).length === 0) {
+    throw new TrialServiceError(
+      "No valid systemInfo fields provided",
+      400,
+      CODES.INVALID_SYSTEM_INFO_FIELDS,
+      "INVALID_SYSTEM_INFO_FIELDS"
+    );
+  }
+
+  const docRef = db.collection(CLIENTS_COLLECTION).doc(buildClientDocId(projectId, deviceId));
+  const snapshot = await docRef.get();
+  if (!snapshot.exists) {
+    throw new TrialServiceError("Trial not found", 404, CODES.TRIAL_NOT_FOUND, "TRIAL_NOT_FOUND");
+  }
+
+  const data = snapshot.data() || {};
+  const merged = mergeSystemInfo(data.systemInfo, partial);
+
+  await docRef.update({
+    systemInfo: merged,
+    systemInfoUpdatedAt: FieldValue.serverTimestamp(),
+    systemInfoUpdatedBy: "admin",
+  });
+
+  return responseBody({
+    message: "Client details updated",
+    token: "",
+    statusCode: CODES.ADMIN_CLIENT_UPDATED,
+    error: null,
+    systemInfo: merged,
+  });
+}
+
 async function adminListClients(payload) {
   const { projectId } = validateProjectIdInput(payload);
   return adminListProjectClients(projectId, payload);
@@ -876,6 +946,7 @@ module.exports = {
   adminListProjectClients,
   adminListProjects,
   adminRevokeTrial,
+  adminUpdateClientSystemInfo,
   startTrial,
   verifyTrial,
 };
