@@ -1,10 +1,10 @@
 import { useEffect, useState, useMemo } from 'react';
 import { formatDistanceToNow } from 'date-fns';
-import { 
-  Monitor, Apple, TerminalSquare, Cpu, HardDrive, 
-  MoreVertical, CheckCircle2, XCircle, AlertCircle, 
-  Trash2, Calendar, Download, ShieldAlert, UserCheck, 
-  UserMinus, Search, Filter
+import {
+  Monitor, Apple, TerminalSquare, Cpu, HardDrive,
+  MoreVertical, CheckCircle2, XCircle, AlertCircle,
+  Trash2, Calendar, Download, ShieldAlert, UserCheck,
+  UserMinus, Search, Filter, Zap
 } from 'lucide-react';
 import { useProject } from '../context/ProjectContext';
 import { useToast } from '../context/ToastContext';
@@ -56,6 +56,8 @@ export function ClientRegistry() {
   const [confirmRevoke, setConfirmRevoke] = useState(null);
   const [revokeReasonOpen, setRevokeReasonOpen] = useState(null);
   const [detailClient, setDetailClient] = useState(null);
+  const [datePickerOpen, setDatePickerOpen] = useState(null);
+  const [datePickerDate, setDatePickerDate] = useState('');
 
   const loadClients = async () => {
     if (!selectedProjectId) return;
@@ -95,14 +97,26 @@ export function ClientRegistry() {
     else setSelectedRows(new Set(clients.map(c => c.deviceId)));
   };
 
-  const handleExtend = async (deviceId) => {
+  const handleExtend = async (deviceId, extendDays = 7) => {
     try {
-      await api.extendTrial({ projectId: selectedProjectId, deviceId, extendDays: 7 });
-      addToast(`Extended trial for ${deviceId} (+7d)`, 'success');
+      await api.extendTrial({ projectId: selectedProjectId, deviceId, extendDays });
+      addToast(`Extended trial for ${deviceId} (+${extendDays}d)`, 'success');
       loadClients();
     } catch (error) {
       addToast(`Failed to extend: ${error.message}`, 'error');
     }
+  };
+
+  const handleExtendToDate = async (deviceId, dateStr) => {
+    const client = clients.find(c => c.deviceId === deviceId);
+    const now = getServerTime();
+    const currentEnd = Number(client?.trialEnd || 0);
+    const base = Math.max(currentEnd, now);
+    const target = new Date(dateStr).getTime();
+    const extendDays = Math.max(1, Math.ceil((target - base) / (1000 * 60 * 60 * 24)));
+    await handleExtend(deviceId, extendDays);
+    setDatePickerOpen(null);
+    setDatePickerDate('');
   };
 
   const handleRevoke = async (deviceId, reason = 'Manual Override') => {
@@ -331,15 +345,89 @@ export function ClientRegistry() {
                       </td>
                       <td className="px-6 py-4 text-right" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-2">
-                          <Button 
-                            size="icon" 
-                            variant="ghost" 
-                            className="h-8 w-8 hover:bg-emerald-500/10 hover:text-emerald-500"
-                            title="Extend +7 Days"
-                            onClick={() => handleExtend(client.deviceId)}
+                          {/* Quick +7 days */}
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 hover:bg-amber-500/10 hover:text-amber-400"
+                            title="Quick +7 Days"
+                            onClick={() => handleExtend(client.deviceId, 7)}
                           >
-                            <Calendar size={14} />
+                            <Zap size={14} />
                           </Button>
+
+                          {/* Calendar: opens date picker with presets */}
+                          <div className="relative">
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className={cn(
+                                "h-8 w-8 transition-all",
+                                datePickerOpen === client.deviceId
+                                  ? "bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-500/40"
+                                  : "hover:bg-emerald-500/10 hover:text-emerald-500"
+                              )}
+                              title="Set Expiry Date"
+                              onClick={() => {
+                                setDatePickerDate('');
+                                setDatePickerOpen(datePickerOpen === client.deviceId ? null : client.deviceId);
+                                setRevokeReasonOpen(null);
+                                setConfirmRevoke(null);
+                              }}
+                            >
+                              <Calendar size={14} />
+                            </Button>
+
+                            {datePickerOpen === client.deviceId && (
+                              <div className="absolute right-0 top-full mt-2 w-52 bg-slate-950 border border-slate-800 rounded-xl shadow-2xl z-50 p-3 ring-1 ring-white/10">
+                                <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-2">Set Expiry</p>
+
+                                <div className="grid grid-cols-2 gap-1 mb-3">
+                                  {[
+                                    { label: '+30 Days', days: 30 },
+                                    { label: '+60 Days', days: 60 },
+                                    { label: '+6 Months', days: 183 },
+                                    { label: '+1 Year', days: 365 },
+                                  ].map(({ label, days }) => (
+                                    <button
+                                      key={label}
+                                      onClick={() => { handleExtend(client.deviceId, days); setDatePickerOpen(null); }}
+                                      className="text-[11px] font-medium text-slate-300 hover:bg-emerald-500/10 hover:text-emerald-400 rounded-md px-2 py-1.5 transition-colors text-center border border-slate-800 hover:border-emerald-500/30"
+                                    >
+                                      {label}
+                                    </button>
+                                  ))}
+                                </div>
+
+                                <div className="border-t border-slate-800 pt-3 space-y-2">
+                                  <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Manual Date</p>
+                                  <input
+                                    type="date"
+                                    value={datePickerDate}
+                                    min={new Date(getServerTime()).toISOString().split('T')[0]}
+                                    onChange={(e) => setDatePickerDate(e.target.value)}
+                                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 [color-scheme:dark]"
+                                  />
+                                  <button
+                                    disabled={!datePickerDate}
+                                    onClick={() => handleExtendToDate(client.deviceId, datePickerDate)}
+                                    className="w-full text-[11px] font-bold text-slate-950 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 disabled:cursor-not-allowed rounded-md px-2 py-1.5 transition-colors"
+                                  >
+                                    Apply Date
+                                  </button>
+                                </div>
+
+                                <div className="border-t border-slate-800 mt-2 pt-1">
+                                  <button
+                                    onClick={() => setDatePickerOpen(null)}
+                                    className="w-full text-center py-1 text-[9px] font-bold text-slate-500 hover:text-slate-300"
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
                           
                           <div className="relative">
                             <Button
@@ -350,6 +438,7 @@ export function ClientRegistry() {
                                 confirmRevoke === client.deviceId ? "bg-red-500 text-white hover:bg-red-600 scale-110" : "hover:bg-red-500/10 hover:text-red-500"
                               )}
                               onClick={() => {
+                                setDatePickerOpen(null);
                                 if (confirmRevoke === client.deviceId) setRevokeReasonOpen(client.deviceId);
                                 else {
                                   setConfirmRevoke(client.deviceId);
