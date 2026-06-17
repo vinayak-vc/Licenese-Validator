@@ -280,6 +280,11 @@ export function ClientRegistry() {
                             <span className="text-[10px] text-slate-500 font-mono tracking-tighter">
                               IP: {client.ip || '---.---.---.---'}
                             </span>
+                            {client.lastOnline && (
+                              <span className="text-[10px] text-cyan-600/70 font-mono tracking-tighter" title={new Date(client.lastOnline).toLocaleString()}>
+                                · {formatDistanceToNow(client.lastOnline, { addSuffix: true })}
+                              </span>
+                            )}
                             {hasCollision && (
                               <div className="group/collision relative">
                                 <ShieldAlert size={12} className="text-amber-500 animate-pulse cursor-help" />

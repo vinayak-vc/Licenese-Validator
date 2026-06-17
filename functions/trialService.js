@@ -570,6 +570,8 @@ async function verifyTrial(payload, options) {
     });
   }
 
+  docRef.update({ lastOnline: Date.now() }).catch(() => {});
+
   const trialEnd = Number(data?.trialEnd || 0);
   const now = Date.now();
 
@@ -751,6 +753,7 @@ async function adminListProjectClients(projectId, payload) {
         ip: data.ip || "",
         systemInfo: data.systemInfo || {},
         status: trialEnd > now ? "active" : "expired",
+        lastOnline: data.lastOnline ? Number(data.lastOnline) : null,
       };
     })
     .filter((item) => (search ? item.deviceId.toLowerCase().includes(search) : true));
