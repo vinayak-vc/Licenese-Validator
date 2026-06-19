@@ -5,8 +5,12 @@ const jwt = require("jsonwebtoken");
 const { v4: uuidv4 } = require("uuid");
 const { FieldValue } = require("firebase-admin/firestore");
 const { db } = require("./firebase");
+const emailService = require("./emailService");
 
 const TRIAL_DURATION_MS = 7 * 24 * 60 * 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
+// "Expiring soon" window for the daily admin digest.
+const EXPIRING_SOON_WINDOW_MS = 3 * DAY_MS;
 const PROJECTS_COLLECTION = "projects";
 const CLIENTS_COLLECTION = "clients";
 
@@ -527,11 +531,32 @@ async function startTrial(payload, options) {
     throw error;
   }
 
+  notifyNewClient({
+    projectName: project.name,
+    projectId: project.id,
+    deviceId,
+    ip,
+    systemInfo,
+    trialStart,
+    trialEnd,
+    source: "client",
+  });
+
   return responseBody({
     message: "Trial started successfully",
     token,
     statusCode: CODES.TRIAL_STARTED,
     error: null,
+  });
+}
+
+// Fire-and-forget admin notification for a newly registered trial. Never throws
+// and is intentionally not awaited so email latency/failures cannot affect the
+// trial response.
+function notifyNewClient(details) {
+  const email = emailService.buildNewClientEmail(details);
+  emailService.sendAdminNotification(email).catch((error) => {
+    console.error("notifyNewClient failed:", error?.message || error);
   });
 }
 
@@ -834,6 +859,17 @@ async function adminCreateClient(payload, options) {
     throw error;
   }
 
+  notifyNewClient({
+    projectName: project.name,
+    projectId: project.id,
+    deviceId,
+    ip,
+    systemInfo,
+    trialStart,
+    trialEnd,
+    source: "admin",
+  });
+
   return responseBody({
     message: "Client added and trial created",
     token,
@@ -938,6 +974,90 @@ async function adminListClients(payload) {
   return adminListProjectClients(projectId, payload);
 }
 
+// Build a projectId -> name map so digest emails can show friendly names.
+async function loadProjectNameMap() {
+  const snapshot = await db.collection(PROJECTS_COLLECTION).get();
+  const map = {};
+  snapshot.docs.forEach((doc) => {
+    map[doc.id] = (doc.data() || {}).name || doc.id;
+  });
+  return map;
+}
+
+function mapClientForDigest(doc, projectNames) {
+  const data = doc.data() || {};
+  return {
+    ref: doc.ref,
+    deviceId: data.deviceId || "",
+    projectId: data.projectId || "",
+    projectName: projectNames[data.projectId] || data.projectId || "",
+    trialEnd: Number(data.trialEnd || 0),
+    revoked: Boolean(data.revoked),
+    expiringNotifiedAt: data.expiringNotifiedAt || null,
+    expiredNotifiedAt: data.expiredNotifiedAt || null,
+  };
+}
+
+/**
+ * Daily scan that emails admins about trials expiring within the next 3 days
+ * and trials that have recently expired. Per-document marker fields
+ * (`expiringNotifiedAt` / `expiredNotifiedAt`) make repeat runs idempotent so
+ * the same trial is never reported twice. Revoked trials are skipped (those are
+ * deliberate admin actions, not lapses).
+ *
+ * @returns {Promise<{expiringCount: number, expiredCount: number}>}
+ */
+async function runTrialExpiryScan(options = {}) {
+  const now = Number.isFinite(options.now) ? options.now : Date.now();
+  const projectNames = await loadProjectNameMap();
+
+  // Expiring soon: trialEnd in (now, now + window]. Single-field range query.
+  const expiringSnap = await db
+    .collection(CLIENTS_COLLECTION)
+    .where("trialEnd", ">", now)
+    .where("trialEnd", "<=", now + EXPIRING_SOON_WINDOW_MS)
+    .get();
+
+  // Recently expired: trialEnd in (now - window, now]. Bounding the lower edge
+  // keeps the scan small; the marker field prevents missed/duplicate sends.
+  const expiredSnap = await db
+    .collection(CLIENTS_COLLECTION)
+    .where("trialEnd", ">", now - EXPIRING_SOON_WINDOW_MS)
+    .where("trialEnd", "<=", now)
+    .get();
+
+  const expiring = expiringSnap.docs
+    .map((doc) => mapClientForDigest(doc, projectNames))
+    .filter((c) => !c.revoked && !c.expiringNotifiedAt);
+
+  const expired = expiredSnap.docs
+    .map((doc) => mapClientForDigest(doc, projectNames))
+    .filter((c) => !c.revoked && !c.expiredNotifiedAt);
+
+  if (expiring.length > 0) {
+    const email = emailService.buildExpiringEmail(expiring);
+    const result = await emailService.sendAdminNotification(email);
+    if (result.status !== "error") {
+      const batch = db.batch();
+      expiring.forEach((c) => batch.update(c.ref, { expiringNotifiedAt: FieldValue.serverTimestamp() }));
+      await batch.commit();
+    }
+  }
+
+  if (expired.length > 0) {
+    const email = emailService.buildExpiredEmail(expired);
+    const result = await emailService.sendAdminNotification(email);
+    if (result.status !== "error") {
+      const batch = db.batch();
+      expired.forEach((c) => batch.update(c.ref, { expiredNotifiedAt: FieldValue.serverTimestamp() }));
+      await batch.commit();
+    }
+  }
+
+  console.log(`Trial expiry scan complete: ${expiring.length} expiring, ${expired.length} expired`);
+  return { expiringCount: expiring.length, expiredCount: expired.length };
+}
+
 module.exports = {
   CODES,
   TrialServiceError,
@@ -952,4 +1072,5 @@ module.exports = {
   adminUpdateClientSystemInfo,
   startTrial,
   verifyTrial,
+  runTrialExpiryScan,
 };

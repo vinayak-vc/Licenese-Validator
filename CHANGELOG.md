@@ -1,5 +1,30 @@
 ﻿# Changelog
 
+## 2026-06-17
+
+### Added — Admin email notifications (Brevo)
+
+- Created `functions/emailService.js`: Brevo transactional API wrapper
+  (`POST https://api.brevo.com/v3/smtp/email`) plus email body builders for the
+  three notification types. `sendAdminNotification()` never throws so trial
+  flows are never affected by email problems.
+- New-client notifications: `startTrial` and `adminCreateClient` now fire a
+  fire-and-forget admin email after a successful trial creation.
+- Trial expiry digests: new scheduled function `trialExpiryDigest` (daily, 08:00
+  UTC) emails admins about trials expiring within 3 days and recently expired
+  trials. Idempotent via per-document `expiringNotifiedAt` / `expiredNotifiedAt`
+  markers; revoked trials are skipped. Logic lives in
+  `runTrialExpiryScan()` in `trialService.js`.
+- Config: `BREVO_API_KEY` (Secret Manager), and `BREVO_SENDER_EMAIL`,
+  `BREVO_SENDER_NAME`, `ADMIN_NOTIFY_EMAILS` (env, see `functions/.env.example`).
+  Recipients are admins only — there are no client-facing emails.
+- Added `functions/scripts/sendTestEmail.js` (`npm run send-test-email`) for a
+  manual end-to-end real send, and Jest coverage in
+  `__tests__/emailService.test.js` and `__tests__/expiryScan.test.js`.
+- Fixed an incomplete Firestore mock in `__tests__/trialService.test.js` (the
+  `verifyTrial` cross-project test was missing `docRef.update`, failing since the
+  Last Online feature landed).
+
 ## 2026-03-12
 
 ### Added

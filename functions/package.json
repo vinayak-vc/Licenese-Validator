@@ -12,7 +12,8 @@
     "deploy": "firebase deploy --only functions",
     "logs": "firebase functions:log",
     "test": "jest --runInBand --detectOpenHandles",
-    "set-admin-claim": "node scripts/setAdminClaim.js"
+    "set-admin-claim": "node scripts/setAdminClaim.js",
+    "send-test-email": "node scripts/sendTestEmail.js"
   },
   "dependencies": {
     "express": "^4.21.2",
