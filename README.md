@@ -382,6 +382,50 @@ Error/decision scenarios:
 - trial expired with token -> HTTP `200`, body `statusCode: "7004"`
 - corrupt trial record -> HTTP `200`, body `statusCode: "7005"`
 
+## Admin Email Notifications (Brevo)
+
+Admins receive transactional emails via the [Brevo](https://developers.brevo.com/docs/getting-started)
+API. There are **no client-facing emails** — all recipients are admins/team.
+
+### Triggers
+
+- **New trial registered** — sent from `startTrial` and `adminApi/createClient`
+  right after a trial is created (fire-and-forget; never blocks the response).
+- **Trials expiring soon** — daily digest of trials ending within 3 days.
+- **Trials expired** — daily digest of recently expired trials.
+
+The two digest triggers run in the scheduled function `trialExpiryDigest`
+(daily at 08:00 UTC). It is idempotent: each client doc is marked with
+`expiringNotifiedAt` / `expiredNotifiedAt` so a trial is reported only once.
+Revoked trials are skipped.
+
+### Configuration
+
+`BREVO_API_KEY` is a secret; the rest are plain env vars (`functions/.env`,
+see `functions/.env.example`):
+
+```bash
+# Secret (prompts for the value):
+firebase functions:secrets:set BREVO_API_KEY
+
+# functions/.env
+BREVO_SENDER_EMAIL=<verified-brevo-sender>
+BREVO_SENDER_NAME=Licence Validator
+ADMIN_NOTIFY_EMAILS=admin1@example.com,admin2@example.com
+```
+
+For local emulator runs, put `BREVO_API_KEY=...` in `functions/.secret.local`.
+
+### Manual test send
+
+From `functions/` (sends a real email to `ADMIN_NOTIFY_EMAILS`):
+
+```bash
+npm run send-test-email                 # sample "new client" email
+npm run send-test-email -- --type expiring
+npm run send-test-email -- --type expired
+```
+
 ## Security
 
 - JWT signing algorithm: `HS256`

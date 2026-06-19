@@ -161,6 +161,7 @@ describe("project-scoped startTrial/verifyTrial", () => {
                 trialEnd: Date.now() + 10000,
               }),
             }),
+            update: jest.fn().mockResolvedValue(undefined),
           }),
         };
       }

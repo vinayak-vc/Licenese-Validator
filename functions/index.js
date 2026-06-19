@@ -2,6 +2,7 @@
 
 const express = require("express");
 const { onRequest } = require("firebase-functions/v2/https");
+const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { defineSecret } = require("firebase-functions/params");
 const { admin } = require("./firebase");
 const {
@@ -18,9 +19,13 @@ const {
   adminUpdateClientSystemInfo,
   startTrial,
   verifyTrial,
+  runTrialExpiryScan,
 } = require("./trialService");
 
 const JWT_SECRET = defineSecret("JWT_SECRET");
+// Brevo transactional API key, used for admin email notifications. Sender and
+// recipient config come from non-secret env vars (see functions/.env.example).
+const BREVO_API_KEY = defineSecret("BREVO_API_KEY");
 
 function getRequestIp(req) {
   return (
@@ -169,7 +174,7 @@ exports.startTrial = onRequest(
   {
     cors: true,
     region: "us-central1",
-    secrets: [JWT_SECRET],
+    secrets: [JWT_SECRET, BREVO_API_KEY],
   },
   startTrialApp
 );
@@ -293,7 +298,21 @@ exports.adminApi = onRequest(
   {
     cors: true,
     region: "us-central1",
-    secrets: [JWT_SECRET],
+    secrets: [JWT_SECRET, BREVO_API_KEY],
   },
   adminApp
+);
+
+// Daily scheduled scan that emails admins about trials expiring within 3 days
+// and trials that have recently expired. Runs at 08:00 UTC every day.
+exports.trialExpiryDigest = onSchedule(
+  {
+    schedule: "0 8 * * *",
+    timeZone: "Etc/UTC",
+    region: "us-central1",
+    secrets: [BREVO_API_KEY],
+  },
+  async () => {
+    await runTrialExpiryScan();
+  }
 );
