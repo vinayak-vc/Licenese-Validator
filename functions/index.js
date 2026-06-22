@@ -16,6 +16,7 @@ const {
   adminListProjectClients,
   adminListProjects,
   adminRevokeTrial,
+  adminSearchAllClients,
   adminUpdateClientSystemInfo,
   startTrial,
   verifyTrial,
@@ -277,6 +278,15 @@ adminApp.get("/projects/:projectId/clients", async (req, res) => {
       search: req.query.search || "",
       limit: req.query.limit || 100,
     });
+    return res.status(200).json(result);
+  } catch (error) {
+    return sendError(res, error);
+  }
+});
+
+adminApp.get("/clients/search", async (req, res) => {
+  try {
+    const result = await adminSearchAllClients(req.query.q || "");
     return res.status(200).json(result);
   } catch (error) {
     return sendError(res, error);

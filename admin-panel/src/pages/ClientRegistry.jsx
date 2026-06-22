@@ -4,7 +4,7 @@ import {
   Monitor, Apple, TerminalSquare, Cpu, HardDrive,
   MoreVertical, CheckCircle2, XCircle, AlertCircle,
   Trash2, Calendar, Download, ShieldAlert, UserCheck,
-  UserMinus, Search, Filter, Zap
+  UserMinus, Search, Filter, Zap, ChevronUp, ChevronDown, ChevronsUpDown
 } from 'lucide-react';
 import { useProject } from '../context/ProjectContext';
 import { useToast } from '../context/ToastContext';
@@ -58,6 +58,7 @@ export function ClientRegistry() {
   const [detailClient, setDetailClient] = useState(null);
   const [datePickerOpen, setDatePickerOpen] = useState(null);
   const [datePickerDate, setDatePickerDate] = useState('');
+  const [sort, setSort] = useState({ col: null, dir: 'asc' });
 
   const loadClients = async () => {
     if (!selectedProjectId) return;
@@ -83,6 +84,38 @@ export function ClientRegistry() {
       if (c.ip) counts[c.ip] = (counts[c.ip] || 0) + 1;
     });
     return Object.fromEntries(Object.entries(counts).filter(([_, count]) => count > 1));
+  }, [clients]);
+
+  const toggleSort = (col) =>
+    setSort(prev => prev.col === col
+      ? { col, dir: prev.dir === 'asc' ? 'desc' : 'asc' }
+      : { col, dir: 'asc' });
+
+  const sortedClients = useMemo(() => {
+    if (!sort.col) return clients;
+    const statusOrder = { active: 0, expired: 1, revoked: 2 };
+    return [...clients].sort((a, b) => {
+      let av, bv;
+      if (sort.col === 'status') {
+        av = statusOrder[a.status] ?? 3;
+        bv = statusOrder[b.status] ?? 3;
+      } else if (sort.col === 'lastOnline') {
+        av = a.lastOnline || 0;
+        bv = b.lastOnline || 0;
+      } else if (sort.col === 'trialEnd') {
+        av = Number(a.trialEnd || 0);
+        bv = Number(b.trialEnd || 0);
+      }
+      return sort.dir === 'asc' ? av - bv : bv - av;
+    });
+  }, [clients, sort]);
+
+  const latestOnlineDeviceId = useMemo(() => {
+    let best = null, bestTs = 0;
+    clients.forEach(c => {
+      if (c.lastOnline && c.lastOnline > bestTs) { bestTs = c.lastOnline; best = c.deviceId; }
+    });
+    return best;
   }, [clients]);
 
   const toggleRow = (id) => {
@@ -205,7 +238,7 @@ export function ClientRegistry() {
         </form>
       </div>
 
-      <div className="bg-slate-900/40 backdrop-blur-xl border border-slate-800 rounded-2xl overflow-visible shadow-2xl">
+      <div className="bg-slate-900/40 border border-slate-800 rounded-2xl overflow-visible shadow-2xl">
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left border-collapse">
             <thead className="text-[10px] uppercase font-bold tracking-[0.2em] bg-slate-950/50 text-slate-500 border-b border-slate-800">
@@ -218,10 +251,25 @@ export function ClientRegistry() {
                     className="rounded border-slate-800 bg-slate-950 text-cyan-600 focus:ring-cyan-500/20"
                   />
                 </th>
-                <th className="px-6 py-5">Node Identity</th>
-                <th className="px-6 py-5">Status</th>
+                <th className="px-6 py-5">
+                  <button onClick={() => toggleSort('lastOnline')} className="flex items-center gap-1 hover:text-slate-300 transition-colors">
+                    Node Identity
+                    {sort.col === 'lastOnline' ? (sort.dir === 'asc' ? <ChevronUp size={11} className="text-cyan-400" /> : <ChevronDown size={11} className="text-cyan-400" />) : <ChevronsUpDown size={11} className="text-slate-600" />}
+                  </button>
+                </th>
+                <th className="px-6 py-5">
+                  <button onClick={() => toggleSort('status')} className="flex items-center gap-1 hover:text-slate-300 transition-colors">
+                    Status
+                    {sort.col === 'status' ? (sort.dir === 'asc' ? <ChevronUp size={11} className="text-cyan-400" /> : <ChevronDown size={11} className="text-cyan-400" />) : <ChevronsUpDown size={11} className="text-slate-600" />}
+                  </button>
+                </th>
                 <th className="px-6 py-5 text-center">Hardware</th>
-                <th className="px-6 py-5">Chronology</th>
+                <th className="px-6 py-5">
+                  <button onClick={() => toggleSort('trialEnd')} className="flex items-center gap-1 hover:text-slate-300 transition-colors">
+                    Chronology
+                    {sort.col === 'trialEnd' ? (sort.dir === 'asc' ? <ChevronUp size={11} className="text-cyan-400" /> : <ChevronDown size={11} className="text-cyan-400" />) : <ChevronsUpDown size={11} className="text-slate-600" />}
+                  </button>
+                </th>
                 <th className="px-6 py-5 text-right">Directives</th>
               </tr>
             </thead>
@@ -238,10 +286,10 @@ export function ClientRegistry() {
                     No registry entries found for this project.
                   </td>
                 </tr>
-              ) : (
-                clients.map((client) => {
+              ) : (() => {
+                const now = getServerTime();
+                return sortedClients.map((client) => {
                   const trialEndMs = Number(client.trialEnd || 0);
-                  const now = getServerTime();
                   const isSelected = selectedRows.has(client.deviceId);
                   const hasCollision = ipCollisions[client.ip];
                   const info = readSystemInfo(client.systemInfo);
@@ -259,7 +307,8 @@ export function ClientRegistry() {
                       className={cn(
                         "group transition-all duration-200 cursor-pointer",
                         isSelected ? "bg-cyan-500/5" : "hover:bg-slate-800/30",
-                        client.isStaff && "opacity-40 grayscale-[0.5]"
+                        client.isStaff && "opacity-40 grayscale-[0.5]",
+                        (datePickerOpen === client.deviceId || revokeReasonOpen === client.deviceId) && "relative z-[50]"
                       )}
                     >
                       <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
@@ -280,11 +329,19 @@ export function ClientRegistry() {
                             <span className="text-[10px] text-slate-500 font-mono tracking-tighter">
                               IP: {client.ip || '---.---.---.---'}
                             </span>
-                            {client.lastOnline && (
-                              <span className="text-[10px] text-cyan-600/70 font-mono tracking-tighter" title={new Date(client.lastOnline).toLocaleString()}>
-                                · {formatDistanceToNow(client.lastOnline, { addSuffix: true })}
-                              </span>
-                            )}
+                            <span
+                              className={cn(
+                                "text-[10px] font-mono tracking-tighter",
+                                client.lastOnline
+                                  ? client.deviceId === latestOnlineDeviceId
+                                    ? "text-cyan-400 font-bold"
+                                    : "text-cyan-600/70"
+                                  : "text-slate-600"
+                              )}
+                              title={client.lastOnline ? new Date(client.lastOnline).toLocaleString() : 'Never seen online'}
+                            >
+                              · {client.lastOnline ? formatDistanceToNow(client.lastOnline, { addSuffix: true }) : 'Never'}
+                            </span>
                             {hasCollision && (
                               <div className="group/collision relative">
                                 <ShieldAlert size={12} className="text-amber-500 animate-pulse cursor-help" />
@@ -496,8 +553,8 @@ export function ClientRegistry() {
                       </td>
                     </tr>
                   );
-                })
-              )}
+                });
+              })()}
             </tbody>
           </table>
         </div>

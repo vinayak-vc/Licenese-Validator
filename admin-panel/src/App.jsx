@@ -10,6 +10,7 @@ import { IntegrationHub } from './pages/IntegrationHub';
 import { ProjectSettings } from './pages/ProjectSettings';
 
 import { HardwareInsights } from './pages/HardwareInsights';
+import { GlobalSearch } from './pages/GlobalSearch';
 
 function App() {
   return (
@@ -21,6 +22,7 @@ function App() {
             <Route path="/" element={<Layout />}>
               <Route index element={<Dashboard />} />
               <Route path="clients" element={<ClientRegistry />} />
+              <Route path="search" element={<GlobalSearch />} />
               <Route path="hardware" element={<HardwareInsights />} />
               <Route path="integration" element={<IntegrationHub />} />
               <Route path="settings" element={<ProjectSettings />} />

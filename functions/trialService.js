@@ -779,6 +779,7 @@ async function adminListProjectClients(projectId, payload) {
         systemInfo: data.systemInfo || {},
         status: trialEnd > now ? "active" : "expired",
         lastOnline: data.lastOnline ? Number(data.lastOnline) : null,
+        createdAt: data.createdAt?.toMillis ? data.createdAt.toMillis() : null,
       };
     })
     .filter((item) => (search ? item.deviceId.toLowerCase().includes(search) : true));
@@ -974,6 +975,55 @@ async function adminListClients(payload) {
   return adminListProjectClients(projectId, payload);
 }
 
+async function adminSearchAllClients(query) {
+  const q = (query || '').trim().toLowerCase();
+  if (q.length < 2) {
+    return responseBody({ message: 'Query too short', token: '', statusCode: CODES.ADMIN_CLIENTS_LISTED, error: null, clients: [], query: q });
+  }
+
+  const projectNames = await loadProjectNameMap();
+  const snapshot = await db.collection(CLIENTS_COLLECTION).limit(500).get();
+  const now = Date.now();
+
+  const clients = snapshot.docs
+    .map(doc => {
+      const data = doc.data() || {};
+      const si = data.systemInfo || {};
+      const hw = si.hardware || {};
+      const dev = si.device || {};
+      const runtime = si.runtime || {};
+      const app = si.application || {};
+      const trialEnd = Number(data.trialEnd || 0);
+
+      const searchable = [
+        data.deviceId || '', data.ip || '',
+        hw.cpu || '', hw.gpu || '',
+        dev.deviceName || '', dev.deviceModel || '',
+        runtime.country || '', app.platform || '',
+        si.os || '', si.cpu || '', si.gpu || '',
+        data.projectId || '', projectNames[data.projectId] || '',
+      ].join('\n').toLowerCase();
+
+      if (!searchable.includes(q)) return null;
+
+      return {
+        deviceId: data.deviceId || '',
+        projectId: data.projectId || '',
+        projectName: projectNames[data.projectId] || data.projectId || '',
+        trialStart: Number(data.trialStart || 0),
+        trialEnd,
+        ip: data.ip || '',
+        systemInfo: data.systemInfo || {},
+        status: data.revoked ? 'revoked' : trialEnd > now ? 'active' : 'expired',
+        lastOnline: data.lastOnline ? Number(data.lastOnline) : null,
+        createdAt: data.createdAt?.toMillis ? data.createdAt.toMillis() : null,
+      };
+    })
+    .filter(Boolean);
+
+  return responseBody({ message: `Found ${clients.length} client(s)`, token: '', statusCode: CODES.ADMIN_CLIENTS_LISTED, error: null, clients, query: q });
+}
+
 // Build a projectId -> name map so digest emails can show friendly names.
 async function loadProjectNameMap() {
   const snapshot = await db.collection(PROJECTS_COLLECTION).get();
@@ -1069,6 +1119,7 @@ module.exports = {
   adminListProjectClients,
   adminListProjects,
   adminRevokeTrial,
+  adminSearchAllClients,
   adminUpdateClientSystemInfo,
   startTrial,
   verifyTrial,
