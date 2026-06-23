@@ -32,10 +32,13 @@ export function Sidebar() {
     );
   }, [projects, searchTerm]);
 
-  const navLinks = [
+  const globalLinks = [
     { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
-    { to: '/clients', icon: Users, label: 'Client Registry' },
     { to: '/search', icon: Globe, label: 'Global Search' },
+  ];
+
+  const projectLinks = [
+    { to: '/clients', icon: Users, label: 'Client Registry' },
     { to: '/hardware', icon: Cpu, label: 'Hardware Insights' },
     { to: '/integration', icon: TerminalSquare, label: 'Integration Hub' },
     { to: '/settings', icon: Settings, label: 'Project Settings' },
@@ -124,7 +127,30 @@ export function Sidebar() {
       </div>
 
       <nav className="flex-1 overflow-y-auto py-4 px-2 space-y-1">
-        {navLinks.map((link) => (
+        {globalLinks.map((link) => (
+          <NavLink
+            key={link.to}
+            to={link.to}
+            end={link.to === '/'}
+            className={({ isActive }) =>
+              cn(
+                'flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-all duration-200',
+                isActive
+                  ? 'bg-cyan-500/10 text-cyan-400 border-l-2 border-cyan-500 rounded-l-none'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+              )
+            }
+          >
+            <link.icon size={18} />
+            {link.label}
+          </NavLink>
+        ))}
+
+        <div className="pt-3 pb-1 px-3">
+          <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-600">Project</p>
+        </div>
+
+        {projectLinks.map((link) => (
           <NavLink
             key={link.to}
             to={link.to}

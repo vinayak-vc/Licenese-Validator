@@ -441,7 +441,7 @@ export function ClientRegistry() {
                             </Button>
 
                             {datePickerOpen === client.deviceId && (
-                              <div className="absolute right-0 top-full mt-2 w-52 bg-slate-950 border border-slate-800 rounded-xl shadow-2xl z-50 p-3 ring-1 ring-white/10">
+                              <div className="absolute right-0 bottom-full mb-2 w-52 bg-slate-950 border border-slate-800 rounded-xl shadow-2xl z-50 p-3 ring-1 ring-white/10">
                                 <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-2">Set Expiry</p>
 
                                 <div className="grid grid-cols-2 gap-1 mb-3">
@@ -512,7 +512,7 @@ export function ClientRegistry() {
                             </Button>
                             
                             {revokeReasonOpen === client.deviceId && (
-                              <div className="absolute right-0 top-full mt-2 w-48 bg-slate-950 border border-slate-800 rounded-xl shadow-2xl z-50 p-2 overflow-hidden ring-1 ring-white/10">
+                              <div className="absolute right-0 bottom-full mb-2 w-48 bg-slate-950 border border-slate-800 rounded-xl shadow-2xl z-50 p-2 overflow-hidden ring-1 ring-white/10">
                                 <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-2 px-2">Revocation Reason</p>
                                 {['Time Tampering', 'Leaked Key', 'Manual Override'].map(reason => (
                                   <button
