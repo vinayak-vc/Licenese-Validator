@@ -11,12 +11,14 @@ import { ProjectSettings } from './pages/ProjectSettings';
 
 import { HardwareInsights } from './pages/HardwareInsights';
 import { GlobalSearch } from './pages/GlobalSearch';
+import { NotificationProvider } from './context/NotificationContext';
 
 function App() {
   return (
     <ToastProvider>
       <AuthProvider>
         <ProjectProvider>
+          <NotificationProvider>
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/" element={<Layout />}>
@@ -28,6 +30,7 @@ function App() {
               <Route path="settings" element={<ProjectSettings />} />
             </Route>
           </Routes>
+          </NotificationProvider>
         </ProjectProvider>
       </AuthProvider>
     </ToastProvider>

@@ -1,11 +1,16 @@
 import { useEffect, useState } from 'react';
 import { getServerTime } from '../../lib/api';
 import { useProject } from '../../context/ProjectContext';
-import { Clock, Globe } from 'lucide-react';
+import { useNotifications } from '../../context/NotificationContext';
+import { NotificationPanel } from '../NotificationPanel';
+import { Clock, Globe, Bell } from 'lucide-react';
+import { cn } from '../../lib/utils';
 
 export function Header() {
   const { selectedProject } = useProject();
+  const { unreadCount } = useNotifications();
   const [time, setTime] = useState(new Date(getServerTime()));
+  const [panelOpen, setPanelOpen] = useState(false);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -35,7 +40,7 @@ export function Header() {
         )}
       </div>
 
-      <div className="flex items-center gap-6">
+      <div className="flex items-center gap-4">
         <div className="flex flex-col items-end">
           <div className="flex items-center gap-2 text-[13px] font-bold text-slate-100 font-mono tracking-tighter">
             <Clock size={14} className="text-slate-500" />
@@ -45,14 +50,38 @@ export function Header() {
             Server Sync (UTC/IST)
           </p>
         </div>
-        
+
+        {/* Bell */}
+        <div className="relative">
+          <button
+            onClick={() => setPanelOpen(o => !o)}
+            className={cn(
+              "relative h-10 w-10 rounded-xl border flex items-center justify-center transition-all",
+              panelOpen
+                ? "bg-cyan-500/10 border-cyan-500/40 text-cyan-400"
+                : "bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200"
+            )}
+          >
+            <Bell size={16} />
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] rounded-full bg-red-500 text-white text-[9px] font-black flex items-center justify-center px-1 shadow-lg">
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            )}
+          </button>
+
+          {panelOpen && (
+            <NotificationPanel onClose={() => setPanelOpen(false)} />
+          )}
+        </div>
+
         <div className="relative group">
           <div className="absolute inset-0 bg-cyan-500/20 blur-xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
           <div className="h-12 w-12 rounded-xl bg-slate-950 border border-slate-800 p-1.5 flex items-center justify-center shadow-2xl relative z-10 hover:border-cyan-500/50 transition-all cursor-pointer">
-             <img 
-               src="/favicon.png" 
-               alt="User Instance" 
-               className="w-full h-full object-contain" 
+             <img
+               src="/favicon.png"
+               alt="User Instance"
+               className="w-full h-full object-contain"
              />
           </div>
         </div>
@@ -60,4 +89,3 @@ export function Header() {
     </header>
   );
 }
-

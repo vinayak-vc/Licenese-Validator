@@ -63,4 +63,5 @@ export const api = {
   extendTrial: (data) => callAdmin('POST', '/extendTrial', data),
   revokeTrial: (data) => callAdmin('POST', '/revokeTrial', data),
   searchClients: (q) => callAdmin('GET', `/clients/search?q=${encodeURIComponent(q)}`),
+  getNotifications: () => callAdmin('GET', '/notifications'),
 };

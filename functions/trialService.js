@@ -3,7 +3,7 @@
 const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
 const { v4: uuidv4 } = require("uuid");
-const { FieldValue } = require("firebase-admin/firestore");
+const { FieldValue, Timestamp } = require("firebase-admin/firestore");
 const { db } = require("./firebase");
 const emailService = require("./emailService");
 
@@ -975,6 +975,89 @@ async function adminListClients(payload) {
   return adminListProjectClients(projectId, payload);
 }
 
+async function adminGetNotifications() {
+  const now = Date.now();
+  const DAY_24H = 24 * 60 * 60 * 1000;
+  const DAY_3 = 3 * DAY_MS;
+
+  const projectNames = await loadProjectNameMap();
+
+  const [newSnap, expiringSnap, expiredSnap] = await Promise.all([
+    // New clients in last 24h (createdAt is a Firestore Timestamp)
+    db.collection(CLIENTS_COLLECTION)
+      .where("createdAt", ">", Timestamp.fromMillis(now - DAY_24H))
+      .limit(30)
+      .get(),
+    // Expiring in next 3 days
+    db.collection(CLIENTS_COLLECTION)
+      .where("trialEnd", ">", now)
+      .where("trialEnd", "<=", now + DAY_3)
+      .limit(30)
+      .get(),
+    // Expired in last 24h
+    db.collection(CLIENTS_COLLECTION)
+      .where("trialEnd", ">", now - DAY_24H)
+      .where("trialEnd", "<=", now)
+      .limit(30)
+      .get(),
+  ]);
+
+  const notifications = [];
+
+  newSnap.docs.forEach(doc => {
+    const data = doc.data() || {};
+    notifications.push({
+      id: `new_${doc.id}`,
+      type: "NEW_CLIENT",
+      deviceId: data.deviceId || "",
+      projectId: data.projectId || "",
+      projectName: projectNames[data.projectId] || data.projectId || "",
+      ip: data.ip || "",
+      timestamp: data.createdAt?.toMillis ? data.createdAt.toMillis() : now,
+    });
+  });
+
+  expiringSnap.docs.forEach(doc => {
+    const data = doc.data() || {};
+    if (data.revoked) return;
+    const trialEnd = Number(data.trialEnd || 0);
+    notifications.push({
+      id: `expiring_${doc.id}`,
+      type: "EXPIRING",
+      deviceId: data.deviceId || "",
+      projectId: data.projectId || "",
+      projectName: projectNames[data.projectId] || data.projectId || "",
+      trialEnd,
+      timestamp: trialEnd,
+    });
+  });
+
+  expiredSnap.docs.forEach(doc => {
+    const data = doc.data() || {};
+    if (data.revoked) return;
+    const trialEnd = Number(data.trialEnd || 0);
+    notifications.push({
+      id: `expired_${doc.id}`,
+      type: "EXPIRED",
+      deviceId: data.deviceId || "",
+      projectId: data.projectId || "",
+      projectName: projectNames[data.projectId] || data.projectId || "",
+      trialEnd,
+      timestamp: trialEnd,
+    });
+  });
+
+  notifications.sort((a, b) => b.timestamp - a.timestamp);
+
+  return responseBody({
+    message: `${notifications.length} notification(s)`,
+    token: "",
+    statusCode: CODES.ADMIN_CLIENTS_LISTED,
+    error: null,
+    notifications,
+  });
+}
+
 async function adminSearchAllClients(query) {
   const q = (query || '').trim().toLowerCase();
   if (q.length < 2) {
@@ -1116,6 +1199,7 @@ module.exports = {
   adminCreateProject,
   adminExtendTrial,
   adminListClients,
+  adminGetNotifications,
   adminListProjectClients,
   adminListProjects,
   adminRevokeTrial,
