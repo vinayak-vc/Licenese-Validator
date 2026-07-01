@@ -13,6 +13,7 @@ const {
   adminCreateProject,
   adminExtendTrial,
   adminListClients,
+  adminListClientEvents,
   adminGetNotifications,
   adminListProjectClients,
   adminListProjects,
@@ -21,6 +22,7 @@ const {
   adminUpdateClientSystemInfo,
   startTrial,
   verifyTrial,
+  logEvents,
   runTrialExpiryScan,
 } = require("./trialService");
 
@@ -172,6 +174,27 @@ verifyTrialApp.all("*", (req, res) => {
   );
 });
 
+const logEventsApp = createBaseApp();
+logEventsApp.post("/", async (req, res) => {
+  try {
+    const result = await logEvents(req.body);
+    return res.status(200).json(result);
+  } catch (error) {
+    return sendError(res, error);
+  }
+});
+
+logEventsApp.all("*", (req, res) => {
+  res.status(405).json(
+    responseBody({
+      message: "Method not allowed",
+      token: "",
+      statusCode: CODES.METHOD_NOT_ALLOWED,
+      error: "METHOD_NOT_ALLOWED",
+    })
+  );
+});
+
 exports.startTrial = onRequest(
   {
     cors: true,
@@ -188,6 +211,14 @@ exports.verifyTrial = onRequest(
     secrets: [JWT_SECRET],
   },
   verifyTrialApp
+);
+
+exports.logEvents = onRequest(
+  {
+    cors: true,
+    region: "us-central1",
+  },
+  logEventsApp
 );
 
 const adminApp = createBaseApp();
@@ -278,6 +309,18 @@ adminApp.get("/projects/:projectId/clients", async (req, res) => {
     const result = await adminListProjectClients(req.params.projectId, {
       search: req.query.search || "",
       limit: req.query.limit || 100,
+    });
+    return res.status(200).json(result);
+  } catch (error) {
+    return sendError(res, error);
+  }
+});
+
+adminApp.get("/projects/:projectId/clients/:deviceId/events", async (req, res) => {
+  try {
+    const result = await adminListClientEvents(req.params.projectId, req.params.deviceId, {
+      limit: req.query.limit,
+      name: req.query.name,
     });
     return res.status(200).json(result);
   } catch (error) {

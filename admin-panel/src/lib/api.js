@@ -64,4 +64,12 @@ export const api = {
   revokeTrial: (data) => callAdmin('POST', '/revokeTrial', data),
   searchClients: (q) => callAdmin('GET', `/clients/search?q=${encodeURIComponent(q)}`),
   getNotifications: () => callAdmin('GET', '/notifications'),
+  getClientEvents: (projectId, deviceId, { limit = 200, name = '' } = {}) => {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (name) params.set('name', name);
+    return callAdmin(
+      'GET',
+      `/projects/${encodeURIComponent(projectId)}/clients/${encodeURIComponent(deviceId)}/events?${params.toString()}`
+    );
+  },
 };

@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Users, Settings, TerminalSquare, LogOut, ChevronDown, Cpu, Plus, Search, Globe } from 'lucide-react';
+import { LayoutDashboard, Users, Settings, TerminalSquare, LogOut, ChevronDown, Cpu, Plus, Search, Globe, BarChart3 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useProject } from '../../context/ProjectContext';
 import { cn } from '../../lib/utils';
@@ -40,6 +40,7 @@ export function Sidebar() {
   const projectLinks = [
     { to: '/clients', icon: Users, label: 'Client Registry' },
     { to: '/hardware', icon: Cpu, label: 'Hardware Insights' },
+    { to: '/analytics', icon: BarChart3, label: 'Analytics' },
     { to: '/integration', icon: TerminalSquare, label: 'Integration Hub' },
     { to: '/settings', icon: Settings, label: 'Project Settings' },
   ];
