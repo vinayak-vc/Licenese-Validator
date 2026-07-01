@@ -7,6 +7,7 @@ import {
 import { useProject } from '../context/ProjectContext';
 import { api, getServerTime } from '../lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
+import { humanize, EVENT_GROUPS } from '../lib/eventTaxonomy';
 
 // A client counts as "live" if its lastOnline (updated on every logEvents
 // batch; the Unity provider flushes every 15s by default) is within this
@@ -80,14 +81,15 @@ export function ClientAnalytics() {
   const lastSeenLabel = lastOnlineMs > 0 ? formatDistanceToNow(new Date(lastOnlineMs), { addSuffix: true }) : 'never';
 
   const stats = useMemo(() => {
-    const byName = {};
+    const humanCounts = {};
     let sessionStarts = 0;
     let sessionEnds = 0;
     let totalSessionSeconds = 0;
 
     events.forEach((event) => {
-      byName[event.name] = (byName[event.name] || 0) + 1;
-      if (event.name === 'session_start') sessionStarts++;
+      const info = humanize(event.name);
+      humanCounts[info.label] = (humanCounts[info.label] || 0) + 1;
+      if (event.name === 'session_start' || event.name === 'app_open') sessionStarts++;
       if (event.name === 'session_end') {
         sessionEnds++;
         const duration = Number(event.params?.duration_seconds);
@@ -95,10 +97,7 @@ export function ClientAnalytics() {
       }
     });
 
-    const topEvents = Object.entries(byName)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 8);
-
+    const topEvents = Object.entries(humanCounts).sort((a, b) => b[1] - a[1]).slice(0, 8);
     return { total: events.length, sessionStarts, sessionEnds, totalSessionSeconds, topEvents };
   }, [events]);
 
@@ -199,27 +198,33 @@ export function ClientAnalytics() {
             ) : (
               <div className="max-h-[500px] overflow-y-auto space-y-1 pr-2">
                 {events.map((event) => {
+                  const info = humanize(event.name);
                   const Icon = pickEventIcon(event.name);
+                  const groupMeta = EVENT_GROUPS[info.group] || EVENT_GROUPS.other;
                   const paramString = Object.entries(event.params || {})
-                    .filter(([key]) => key !== 'app_type' && key !== 'game_id')
+                    .filter(([key]) => key !== 'app_type' && key !== 'game_id' && key !== 'ui_name' && key !== 'screen_name')
                     .map(([key, val]) => `${key}=${val}`)
                     .join(' · ');
+                  const contextLine = event.params?.screen_name ? `on ${event.params.screen_name}` : paramString;
                   return (
                     <div key={event.id} className="flex items-start gap-3 py-2 border-b border-slate-800 last:border-0">
-                      <div className="mt-0.5 text-cyan-500 shrink-0">
-                        <Icon size={14} />
+                      <div
+                        className="mt-0.5 shrink-0 flex items-center justify-center h-7 w-7 rounded-lg"
+                        style={{ backgroundColor: `${groupMeta.accent}20`, color: groupMeta.accent }}
+                      >
+                        <Icon size={13} />
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-2">
-                          <span className="text-xs font-bold text-slate-200 truncate">{event.name}</span>
+                          <span className="text-xs font-bold text-slate-200 truncate">{info.label}</span>
                           <span className="text-[10px] text-slate-500 shrink-0">
                             {event.receivedAt
                               ? formatDistanceToNow(new Date(event.receivedAt), { addSuffix: true })
                               : 'unknown'}
                           </span>
                         </div>
-                        {paramString && (
-                          <p className="text-[10px] text-slate-500 mt-0.5 truncate font-mono">{paramString}</p>
+                        {contextLine && (
+                          <p className="text-[10px] text-slate-500 mt-0.5 truncate">{contextLine}</p>
                         )}
                       </div>
                     </div>
