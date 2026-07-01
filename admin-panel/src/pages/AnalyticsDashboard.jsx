@@ -3,10 +3,11 @@ import { useProject } from '../context/ProjectContext';
 import { api } from '../lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Donut } from '../components/charts/Donut';
+import { TimeSeriesBars } from '../components/charts/TimeSeriesBars';
 import { humanize, EVENT_GROUPS } from '../lib/eventTaxonomy';
 import {
   Activity, Users, Filter, LogIn, LogOut, Eye, MousePointerClick, Gamepad2, Briefcase,
-  Monitor, AlertTriangle, Sparkles, TrendingUp
+  Monitor, AlertTriangle, Sparkles, TrendingUp, CalendarDays
 } from 'lucide-react';
 
 // One event fetch is scoped to (projectId, deviceId). Building a project-wide
@@ -149,6 +150,56 @@ export function AnalyticsDashboard() {
     [summary.groupCounts]
   );
 
+  // Bucket events into 30 daily bins ending today. Uses receivedAt (server
+  // timestamp) so client clock skew can't shift the axis. Days with zero
+  // activity still render so gaps in usage are visible, not hidden.
+  const dailyBuckets = useMemo(() => {
+    const days = 30;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const buckets = [];
+    for (let i = days - 1; i >= 0; i -= 1) {
+      const dayStart = new Date(today);
+      dayStart.setDate(today.getDate() - i);
+      const dayEnd = new Date(dayStart);
+      dayEnd.setDate(dayStart.getDate() + 1);
+      buckets.push({
+        day: dayStart.toISOString().slice(0, 10),
+        label: dayStart.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+        startMs: dayStart.getTime(),
+        endMs: dayEnd.getTime(),
+        value: 0,
+      });
+    }
+
+    filteredEvents.forEach((event) => {
+      const t = event.receivedAt || event.clientTimestamp;
+      if (!t) return;
+      for (let i = 0; i < buckets.length; i += 1) {
+        if (t >= buckets[i].startMs && t < buckets[i].endMs) {
+          buckets[i].value += 1;
+          break;
+        }
+      }
+    });
+
+    return buckets;
+  }, [filteredEvents]);
+
+  const trendSummary = useMemo(() => {
+    if (dailyBuckets.length < 14) return null;
+    const half = Math.floor(dailyBuckets.length / 2);
+    const olderSum = dailyBuckets.slice(0, half).reduce((sum, b) => sum + b.value, 0);
+    const newerSum = dailyBuckets.slice(half).reduce((sum, b) => sum + b.value, 0);
+    if (olderSum === 0 && newerSum === 0) return null;
+    if (olderSum === 0) return { direction: 'up', pct: 100, label: 'up sharply (from zero)' };
+    const change = ((newerSum - olderSum) / olderSum) * 100;
+    const abs = Math.round(Math.abs(change));
+    if (change > 5) return { direction: 'up', pct: abs, label: `up ${abs}% vs prior 15 days` };
+    if (change < -5) return { direction: 'down', pct: abs, label: `down ${abs}% vs prior 15 days` };
+    return { direction: 'flat', pct: abs, label: 'roughly steady' };
+  }, [dailyBuckets]);
+
   const appTypeSegments = useMemo(
     () =>
       Object.entries(summary.byAppType)
@@ -205,6 +256,36 @@ export function AnalyticsDashboard() {
       )}
 
       <NarrativeSummary summary={summary} scanned={Math.min(clients.length, MAX_CLIENTS_TO_SCAN)} totalDevices={clients.length} />
+
+      <Card className="bg-slate-900/50 border-slate-800 shadow-xl">
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between gap-2">
+            <CardTitle className="text-sm font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
+              <CalendarDays size={14} className="text-cyan-500" /> Activity Over the Last 30 Days
+            </CardTitle>
+            {trendSummary && (
+              <span
+                className={
+                  trendSummary.direction === 'up'
+                    ? 'inline-flex items-center gap-1 text-[11px] font-bold text-emerald-400'
+                    : trendSummary.direction === 'down'
+                      ? 'inline-flex items-center gap-1 text-[11px] font-bold text-rose-400'
+                      : 'inline-flex items-center gap-1 text-[11px] font-bold text-slate-400'
+                }
+              >
+                <TrendingUp
+                  size={12}
+                  style={{ transform: trendSummary.direction === 'down' ? 'rotate(180deg)' : 'none' }}
+                />
+                {trendSummary.label}
+              </span>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent className="pt-4">
+          <TimeSeriesBars buckets={dailyBuckets} height={200} />
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card className="bg-slate-900/50 border-slate-800 shadow-xl md:col-span-2">
