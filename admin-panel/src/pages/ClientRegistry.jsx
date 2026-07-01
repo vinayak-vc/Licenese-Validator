@@ -4,8 +4,10 @@ import {
   Monitor, Apple, TerminalSquare, Cpu, HardDrive,
   MoreVertical, CheckCircle2, XCircle, AlertCircle,
   Trash2, Calendar, Download, ShieldAlert, UserCheck,
-  UserMinus, Search, Filter, Zap, ChevronUp, ChevronDown, ChevronsUpDown
+  UserMinus, Search, Filter, Zap, ChevronUp, ChevronDown, ChevronsUpDown,
+  Activity
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { useProject } from '../context/ProjectContext';
 import { useToast } from '../context/ToastContext';
 import { api, getServerTime } from '../lib/api';
@@ -407,6 +409,15 @@ export function ClientRegistry() {
                       </td>
                       <td className="px-6 py-4 text-right" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-2">
+                          {/* Per-client analytics */}
+                          <Link
+                            to={`/clients/${encodeURIComponent(client.deviceId)}/analytics`}
+                            title="View analytics"
+                            className="h-8 w-8 inline-flex items-center justify-center rounded-md text-slate-400 hover:bg-cyan-500/10 hover:text-cyan-400 transition-colors"
+                          >
+                            <Activity size={14} />
+                          </Link>
+
                           {/* Quick +7 days */}
                           <Button
                             size="icon"

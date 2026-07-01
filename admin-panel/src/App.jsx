@@ -11,6 +11,7 @@ import { ProjectSettings } from './pages/ProjectSettings';
 
 import { HardwareInsights } from './pages/HardwareInsights';
 import { AnalyticsDashboard } from './pages/AnalyticsDashboard';
+import { ClientAnalytics } from './pages/ClientAnalytics';
 import { GlobalSearch } from './pages/GlobalSearch';
 import { NotificationProvider } from './context/NotificationContext';
 
@@ -28,6 +29,7 @@ function App() {
               <Route path="search" element={<GlobalSearch />} />
               <Route path="hardware" element={<HardwareInsights />} />
               <Route path="analytics" element={<AnalyticsDashboard />} />
+              <Route path="clients/:deviceId/analytics" element={<ClientAnalytics />} />
               <Route path="integration" element={<IntegrationHub />} />
               <Route path="settings" element={<ProjectSettings />} />
             </Route>
