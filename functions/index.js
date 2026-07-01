@@ -25,6 +25,7 @@ const {
   logEvents,
   runTrialExpiryScan,
 } = require("./trialService");
+const { runExport: runBigQueryExport } = require("./bigqueryExport");
 
 const JWT_SECRET = defineSecret("JWT_SECRET");
 // Brevo transactional API key, used for admin email notifications. Sender and
@@ -377,5 +378,22 @@ exports.trialExpiryDigest = onSchedule(
   },
   async () => {
     await runTrialExpiryScan();
+  }
+);
+
+// Hourly BigQuery export using batch loads (free tier). Auto-creates the
+// dataset/table on first run and sets a 90-day partition expiration so
+// storage stays flat. See functions/bigqueryExport.js for the design notes.
+exports.exportEventsToBigQuery = onSchedule(
+  {
+    schedule: "0 * * * *",
+    timeZone: "Etc/UTC",
+    region: "us-central1",
+    timeoutSeconds: 540,
+    memory: "512MiB",
+  },
+  async () => {
+    const result = await runBigQueryExport();
+    console.log(`exportEventsToBigQuery: exported ${result.exported} row(s)`);
   }
 );
