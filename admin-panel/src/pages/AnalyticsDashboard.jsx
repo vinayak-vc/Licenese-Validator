@@ -5,9 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card'
 import { Donut } from '../components/charts/Donut';
 import { TimeSeriesBars } from '../components/charts/TimeSeriesBars';
 import { humanize, EVENT_GROUPS } from '../lib/eventTaxonomy';
+import { toCsv, downloadCsv } from '../lib/csv';
 import {
   Activity, Users, Filter, LogIn, LogOut, Eye, MousePointerClick, Gamepad2, Briefcase,
-  Monitor, AlertTriangle, Sparkles, TrendingUp, CalendarDays
+  Monitor, AlertTriangle, Sparkles, TrendingUp, CalendarDays, Search, Download
 } from 'lucide-react';
 
 // One event fetch is scoped to (projectId, deviceId). Building a project-wide
@@ -39,12 +40,21 @@ function formatMinutes(seconds) {
   return remainder === 0 ? `${hours}h` : `${hours}h ${remainder}m`;
 }
 
+const DATE_RANGE_OPTIONS = [
+  { value: 7, label: 'Last 7 days' },
+  { value: 30, label: 'Last 30 days' },
+  { value: 90, label: 'Last 90 days' },
+  { value: 0, label: 'All time' },
+];
+
 export function AnalyticsDashboard() {
   const { selectedProjectId, projects } = useProject();
   const [clients, setClients] = useState([]);
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selectedAppType, setSelectedAppType] = useState('all');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [dateRangeDays, setDateRangeDays] = useState(30);
 
   const activeProject = useMemo(
     () => projects.find((p) => p.projectId === selectedProjectId) || null,
@@ -84,9 +94,42 @@ export function AnalyticsDashboard() {
   }, [selectedProjectId]);
 
   const filteredEvents = useMemo(() => {
-    if (selectedAppType === 'all') return events;
-    return events.filter((event) => event.params?.app_type === selectedAppType);
-  }, [events, selectedAppType]);
+    const cutoff = dateRangeDays > 0 ? Date.now() - dateRangeDays * 24 * 60 * 60 * 1000 : 0;
+    const needle = searchTerm.trim().toLowerCase();
+
+    return events.filter((event) => {
+      if (selectedAppType !== 'all' && event.params?.app_type !== selectedAppType) return false;
+      if (cutoff > 0) {
+        const timeMs = event.receivedAt || event.clientTimestamp || 0;
+        if (timeMs < cutoff) return false;
+      }
+      if (needle) {
+        const humanLabel = humanize(event.name).label.toLowerCase();
+        if (!event.name.toLowerCase().includes(needle) && !humanLabel.includes(needle)) return false;
+      }
+      return true;
+    });
+  }, [events, selectedAppType, dateRangeDays, searchTerm]);
+
+  function handleExportCsv() {
+    if (filteredEvents.length === 0) return;
+    const rows = filteredEvents.map((event) => ({
+      ...event,
+      _human: humanize(event.name).label,
+      _receivedAtIso: event.receivedAt ? new Date(event.receivedAt).toISOString() : '',
+      _paramsJson: JSON.stringify(event.params || {}),
+    }));
+    const csv = toCsv(rows, [
+      { header: 'Received At', get: (r) => r._receivedAtIso },
+      { header: 'Device ID', get: (r) => r.deviceId },
+      { header: 'Event Name', get: (r) => r.name },
+      { header: 'Human Label', get: (r) => r._human },
+      { header: 'App Type', get: (r) => r.params?.app_type || '' },
+      { header: 'Params (JSON)', get: (r) => r._paramsJson },
+    ]);
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    downloadCsv(`analytics-${activeProject?.projectId || 'project'}-${stamp}.csv`, csv);
+  }
 
   const summary = useMemo(() => {
     const groupCounts = {};
@@ -235,8 +278,28 @@ export function AnalyticsDashboard() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Filter size={14} className="text-slate-500" />
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative">
+            <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search events..."
+              className="pl-7 pr-3 py-2 bg-slate-950 border border-slate-800 rounded text-xs text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-cyan-500/50 w-40"
+            />
+          </div>
+
+          <select
+            value={dateRangeDays}
+            onChange={(e) => setDateRangeDays(Number(e.target.value))}
+            className="bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-cyan-500/50"
+          >
+            {DATE_RANGE_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </select>
+
           <select
             value={selectedAppType}
             onChange={(event) => setSelectedAppType(event.target.value)}
@@ -248,6 +311,14 @@ export function AnalyticsDashboard() {
               </option>
             ))}
           </select>
+
+          <button
+            onClick={handleExportCsv}
+            disabled={filteredEvents.length === 0}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded text-xs font-bold bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 hover:bg-cyan-500/20 disabled:opacity-50"
+          >
+            <Download size={12} /> Export CSV
+          </button>
         </div>
       </div>
 

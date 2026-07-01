@@ -15,6 +15,7 @@ import { Button } from '../components/ui/Button';
 import { cn } from '../lib/utils';
 import { readSystemInfo, countryToFlag } from '../lib/systemInfo';
 import { ClientDetailModal } from '../components/ClientDetailModal';
+import { Sparkline } from '../components/charts/Sparkline';
 
 function StatusPill({ status, trialEnd }) {
   const now = getServerTime();
@@ -39,6 +40,49 @@ function StatusPill({ status, trialEnd }) {
       <CheckCircle2 size={12} /> Active
     </span>
   );
+}
+
+// Lazy-loading 7-day activity sparkline. Fetches once per (projectId, deviceId)
+// and caches in a module-level Map so scrolling through the registry doesn't
+// re-hit the API for the same row.
+const sparkCache = new Map();
+function ClientSparkline({ projectId, deviceId }) {
+  const [values, setValues] = useState(sparkCache.get(`${projectId}__${deviceId}`) || null);
+
+  useEffect(() => {
+    const key = `${projectId}__${deviceId}`;
+    if (sparkCache.has(key)) {
+      setValues(sparkCache.get(key));
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const result = await api.getClientEvents(projectId, deviceId, { limit: 500 });
+        if (cancelled) return;
+        const events = result.events || [];
+        const now = new Date();
+        now.setUTCHours(0, 0, 0, 0);
+        const buckets = new Array(7).fill(0);
+        events.forEach((event) => {
+          const t = event.receivedAt || event.clientTimestamp;
+          if (!t) return;
+          const ageDays = Math.floor((now.getTime() - t) / (24 * 60 * 60 * 1000));
+          if (ageDays >= 0 && ageDays < 7) {
+            buckets[6 - ageDays] += 1;
+          }
+        });
+        sparkCache.set(key, buckets);
+        setValues(buckets);
+      } catch (_) {
+        sparkCache.set(key, [0, 0, 0, 0, 0, 0, 0]);
+        if (!cancelled) setValues([0, 0, 0, 0, 0, 0, 0]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [projectId, deviceId]);
+
+  return <Sparkline values={values || []} width={70} height={20} />;
 }
 
 function OsIcon({ os }) {
@@ -343,6 +387,9 @@ export function ClientRegistry() {
                               title={client.lastOnline ? new Date(client.lastOnline).toLocaleString() : 'Never seen online'}
                             >
                               · {client.lastOnline ? formatDistanceToNow(client.lastOnline, { addSuffix: true }) : 'Never'}
+                            </span>
+                            <span className="ml-2" title="7-day activity">
+                              <ClientSparkline projectId={selectedProjectId} deviceId={client.deviceId} />
                             </span>
                             {hasCollision && (
                               <div className="group/collision relative">

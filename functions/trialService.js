@@ -1272,6 +1272,307 @@ async function adminListClientEvents(projectId, deviceId, options = {}) {
   });
 }
 
+// Sequential funnel: for each event name in `steps` (in order), count how
+// many devices have at least one event matching AND that event occurs after
+// their previous step's event. Read-only, project-scoped.
+async function adminFunnel(payload) {
+  const { projectId, steps, windowDays } = validateFunnelInput(payload);
+  const cutoffMs = Date.now() - windowDays * DAY_MS;
+
+  // 1. All events in window for this project (scoped via collectionGroup).
+  const snapshot = await db
+    .collectionGroup(EVENTS_SUBCOLLECTION)
+    .where("receivedAt", ">", Timestamp.fromMillis(cutoffMs))
+    .get();
+
+  // 2. Bucket per device: [{name, timeMs}, ...] sorted ascending.
+  const byDevice = new Map();
+  snapshot.docs.forEach((doc) => {
+    const parentPath = doc.ref.parent.parent?.path || "";                  // clients/{clientDocId}
+    const clientDocId = parentPath.split("/")[1] || "";
+    const sep = clientDocId.indexOf("__");
+    if (sep < 0) return;
+    if (clientDocId.slice(0, sep) !== projectId) return;
+    const deviceId = clientDocId.slice(sep + 2);
+    const data = doc.data() || {};
+    const timeMs = data.receivedAt?.toMillis ? data.receivedAt.toMillis() : 0;
+    if (!timeMs) return;
+    if (!byDevice.has(deviceId)) byDevice.set(deviceId, []);
+    byDevice.get(deviceId).push({ name: data.name || "", timeMs });
+  });
+  byDevice.forEach((list) => list.sort((a, b) => a.timeMs - b.timeMs));
+
+  // 3. For each device, walk steps in order.
+  const stepCounts = new Array(steps.length).fill(0);
+  byDevice.forEach((events) => {
+    let cursor = 0;
+    for (let i = 0; i < steps.length; i += 1) {
+      const stepName = steps[i];
+      let found = false;
+      while (cursor < events.length) {
+        if (events[cursor].name === stepName) {
+          found = true;
+          cursor += 1;
+          break;
+        }
+        cursor += 1;
+      }
+      if (!found) break;
+      stepCounts[i] += 1;
+    }
+  });
+
+  const startCount = stepCounts[0] || 0;
+  const funnelSteps = steps.map((name, index) => {
+    const count = stepCounts[index];
+    const pctOfStart = startCount === 0 ? 0 : Math.round((count / startCount) * 100);
+    const pctOfPrev = index === 0
+      ? 100
+      : (stepCounts[index - 1] === 0 ? 0 : Math.round((count / stepCounts[index - 1]) * 100));
+    return { name, count, pctOfStart, pctOfPrev };
+  });
+
+  return responseBody({
+    message: "Funnel computed",
+    token: "",
+    statusCode: CODES.ADMIN_CLIENTS_LISTED,
+    error: null,
+    projectId,
+    windowDays,
+    totalDevicesInWindow: byDevice.size,
+    steps: funnelSteps,
+  });
+}
+
+function validateFunnelInput(payload) {
+  if (!payload || typeof payload !== "object") {
+    throw new TrialServiceError("Invalid request body", 400, CODES.INVALID_BODY, "INVALID_BODY");
+  }
+  if (!isNonEmptyString(payload.projectId, 120)) {
+    throw new TrialServiceError("Invalid projectId", 400, CODES.INVALID_PROJECT_ID, "INVALID_PROJECT_ID");
+  }
+  if (!Array.isArray(payload.steps) || payload.steps.length < 2 || payload.steps.length > 8) {
+    throw new TrialServiceError(
+      "steps must be an array of 2-8 event names",
+      400,
+      CODES.INVALID_EVENTS,
+      "INVALID_EVENTS"
+    );
+  }
+  const steps = payload.steps.map((s) => {
+    if (!isNonEmptyString(s, MAX_EVENT_NAME_LENGTH)) {
+      throw new TrialServiceError(
+        `Invalid step name (max ${MAX_EVENT_NAME_LENGTH} chars)`,
+        400,
+        CODES.INVALID_EVENTS,
+        "INVALID_EVENTS"
+      );
+    }
+    return s.trim();
+  });
+  const parsedDays = Number(payload.windowDays);
+  const windowDays = Number.isInteger(parsedDays) && parsedDays >= 1 && parsedDays <= 90 ? parsedDays : 30;
+  return { projectId: payload.projectId.trim(), steps, windowDays };
+}
+
+// D1/D7/D30 return rate by install cohort.
+// A device's "install day" = the day of its earliest event (session_start
+// preferred, else any event). "Returned on day N" = has any event on
+// install_day + N.
+async function adminRetention(payload) {
+  if (!payload || !isNonEmptyString(payload.projectId, 120)) {
+    throw new TrialServiceError("Invalid projectId", 400, CODES.INVALID_PROJECT_ID, "INVALID_PROJECT_ID");
+  }
+  const parsedDays = Number(payload.windowDays);
+  const windowDays = Number.isInteger(parsedDays) && parsedDays >= 7 && parsedDays <= 60 ? parsedDays : 30;
+  const projectId = payload.projectId.trim();
+  const cutoffMs = Date.now() - (windowDays + 30) * DAY_MS;
+
+  const snapshot = await db
+    .collectionGroup(EVENTS_SUBCOLLECTION)
+    .where("receivedAt", ">", Timestamp.fromMillis(cutoffMs))
+    .get();
+
+  const byDevice = new Map();                                              // deviceId -> Set<dayKey>
+  const installDay = new Map();                                            // deviceId -> earliest dayKey
+  snapshot.docs.forEach((doc) => {
+    const parentPath = doc.ref.parent.parent?.path || "";
+    const clientDocId = parentPath.split("/")[1] || "";
+    const sep = clientDocId.indexOf("__");
+    if (sep < 0) return;
+    if (clientDocId.slice(0, sep) !== projectId) return;
+    const deviceId = clientDocId.slice(sep + 2);
+    const data = doc.data() || {};
+    const timeMs = data.receivedAt?.toMillis ? data.receivedAt.toMillis() : 0;
+    if (!timeMs) return;
+    const dayKey = new Date(timeMs).toISOString().slice(0, 10);
+    if (!byDevice.has(deviceId)) byDevice.set(deviceId, new Set());
+    byDevice.get(deviceId).add(dayKey);
+    const existing = installDay.get(deviceId);
+    if (!existing || dayKey < existing) installDay.set(deviceId, dayKey);
+  });
+
+  // Cohort per install day: count of devices, plus how many returned on
+  // day+1 / +7 / +30.
+  const cohorts = new Map();                                               // dayKey -> {size, d1, d7, d30}
+  installDay.forEach((installKey, deviceId) => {
+    if (!cohorts.has(installKey)) cohorts.set(installKey, { day: installKey, size: 0, d1: 0, d7: 0, d30: 0 });
+    const cohort = cohorts.get(installKey);
+    cohort.size += 1;
+    const days = byDevice.get(deviceId);
+    const install = new Date(installKey + "T00:00:00Z");
+    [1, 7, 30].forEach((offset) => {
+      const target = new Date(install);
+      target.setUTCDate(target.getUTCDate() + offset);
+      const targetKey = target.toISOString().slice(0, 10);
+      if (days.has(targetKey)) {
+        cohort[`d${offset}`] += 1;
+      }
+    });
+  });
+
+  const cohortsList = Array.from(cohorts.values()).sort((a, b) => a.day.localeCompare(b.day));
+
+  return responseBody({
+    message: "Retention computed",
+    token: "",
+    statusCode: CODES.ADMIN_CLIENTS_LISTED,
+    error: null,
+    projectId,
+    windowDays,
+    cohorts: cohortsList,
+  });
+}
+
+// Bucket devices by hardware/country signals from their systemInfo and
+// aggregate event counts + error counts per bucket. Read-only.
+async function adminHardwareBreakdown(payload) {
+  if (!payload || !isNonEmptyString(payload.projectId, 120)) {
+    throw new TrialServiceError("Invalid projectId", 400, CODES.INVALID_PROJECT_ID, "INVALID_PROJECT_ID");
+  }
+  const projectId = payload.projectId.trim();
+  const parsedDays = Number(payload.windowDays);
+  const windowDays = Number.isInteger(parsedDays) && parsedDays >= 1 && parsedDays <= 90 ? parsedDays : 30;
+  const cutoffMs = Date.now() - windowDays * DAY_MS;
+
+  // 1. All clients for this project.
+  const clientsSnapshot = await db
+    .collection(CLIENTS_COLLECTION)
+    .where("projectId", "==", projectId)
+    .limit(1000)
+    .get();
+
+  const clientInfo = new Map();                                            // deviceId -> {gpu, cpu, os, country}
+  clientsSnapshot.docs.forEach((doc) => {
+    const data = doc.data() || {};
+    const si = data.systemInfo || {};
+    clientInfo.set(data.deviceId || "", {
+      gpu: si.hardware?.gpu || "Unknown",
+      cpu: si.hardware?.cpu || "Unknown",
+      os: si.application?.platform || "Unknown",
+      country: (si.runtime?.country || "Unknown").replace(/\s*\(local\)\s*$/i, "").trim() || "Unknown",
+    });
+  });
+
+  // 2. Events window.
+  const eventsSnapshot = await db
+    .collectionGroup(EVENTS_SUBCOLLECTION)
+    .where("receivedAt", ">", Timestamp.fromMillis(cutoffMs))
+    .get();
+
+  const buckets = { gpu: {}, cpu: {}, os: {}, country: {} };
+  const errorBuckets = { gpu: {}, cpu: {}, os: {}, country: {} };
+
+  eventsSnapshot.docs.forEach((doc) => {
+    const parentPath = doc.ref.parent.parent?.path || "";
+    const clientDocId = parentPath.split("/")[1] || "";
+    const sep = clientDocId.indexOf("__");
+    if (sep < 0) return;
+    if (clientDocId.slice(0, sep) !== projectId) return;
+    const deviceId = clientDocId.slice(sep + 2);
+    const info = clientInfo.get(deviceId);
+    if (!info) return;
+    const data = doc.data() || {};
+    const name = data.name || "";
+    const isError = name === "error_reported" || name === "exception_caught" || name === "kiosk_hardware_fault";
+
+    ["gpu", "cpu", "os", "country"].forEach((facet) => {
+      const key = info[facet];
+      buckets[facet][key] = (buckets[facet][key] || 0) + 1;
+      if (isError) errorBuckets[facet][key] = (errorBuckets[facet][key] || 0) + 1;
+    });
+  });
+
+  function topN(obj, n = 10) {
+    return Object.entries(obj).sort((a, b) => b[1] - a[1]).slice(0, n).map(([k, v]) => ({ key: k, count: v }));
+  }
+
+  return responseBody({
+    message: "Hardware breakdown computed",
+    token: "",
+    statusCode: CODES.ADMIN_CLIENTS_LISTED,
+    error: null,
+    projectId,
+    windowDays,
+    activity: {
+      gpu: topN(buckets.gpu),
+      cpu: topN(buckets.cpu),
+      os: topN(buckets.os),
+      country: topN(buckets.country),
+    },
+    errors: {
+      gpu: topN(errorBuckets.gpu),
+      cpu: topN(errorBuckets.cpu),
+      os: topN(errorBuckets.os),
+      country: topN(errorBuckets.country),
+    },
+  });
+}
+
+// Recent events across every device in a project (for the live-tail page).
+async function adminRecentEvents(projectId, sinceMs, limit) {
+  if (!isNonEmptyString(projectId, 120)) {
+    throw new TrialServiceError("Invalid projectId", 400, CODES.INVALID_PROJECT_ID, "INVALID_PROJECT_ID");
+  }
+  const cap = Math.min(500, Math.max(1, Number(limit) || 200));
+  const cutoffMs = Number.isFinite(sinceMs) && sinceMs > 0 ? sinceMs : Date.now() - 5 * 60 * 1000;
+
+  const snapshot = await db
+    .collectionGroup(EVENTS_SUBCOLLECTION)
+    .where("receivedAt", ">", Timestamp.fromMillis(cutoffMs))
+    .orderBy("receivedAt", "desc")
+    .limit(cap * 3)                                                        // over-fetch since we still have to filter by project
+    .get();
+
+  const events = [];
+  for (const doc of snapshot.docs) {
+    if (events.length >= cap) break;
+    const parentPath = doc.ref.parent.parent?.path || "";
+    const clientDocId = parentPath.split("/")[1] || "";
+    const sep = clientDocId.indexOf("__");
+    if (sep < 0) continue;
+    if (clientDocId.slice(0, sep) !== projectId.trim()) continue;
+    const deviceId = clientDocId.slice(sep + 2);
+    const data = doc.data() || {};
+    events.push({
+      id: doc.id,
+      deviceId,
+      name: data.name || "",
+      params: data.params || {},
+      clientTimestamp: data.clientTimestamp === null ? null : Number(data.clientTimestamp),
+      receivedAt: data.receivedAt?.toMillis ? data.receivedAt.toMillis() : null,
+    });
+  }
+
+  return responseBody({
+    message: `${events.length} event(s)`,
+    token: "",
+    statusCode: CODES.EVENTS_LOGGED,
+    error: null,
+    events,
+  });
+}
+
 async function adminSearchAllClients(query) {
   const q = (query || '').trim().toLowerCase();
   if (q.length < 2) {
@@ -1420,6 +1721,10 @@ module.exports = {
   adminRevokeTrial,
   adminSearchAllClients,
   adminUpdateClientSystemInfo,
+  adminFunnel,
+  adminRetention,
+  adminHardwareBreakdown,
+  adminRecentEvents,
   startTrial,
   verifyTrial,
   logEvents,

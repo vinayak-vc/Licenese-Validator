@@ -2,12 +2,15 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
 import {
-  Activity, ArrowLeft, Clock, Radio, LogIn, LogOut, Pause, Play, Eye, MousePointerClick, AlertTriangle
+  Activity, ArrowLeft, Clock, Radio, LogIn, LogOut, Pause, Play, Eye, MousePointerClick, AlertTriangle, LayoutList
 } from 'lucide-react';
 import { useProject } from '../context/ProjectContext';
 import { api, getServerTime } from '../lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { humanize, EVENT_GROUPS } from '../lib/eventTaxonomy';
+import { groupIntoSessions } from '../lib/sessionGrouping';
+import { toCsv, downloadCsv } from '../lib/csv';
+import { Download, ChevronDown, ChevronRight, CheckCircle2, AlertOctagon } from 'lucide-react';
 
 // A client counts as "live" if its lastOnline (updated on every logEvents
 // batch; the Unity provider flushes every 15s by default) is within this
@@ -30,6 +33,87 @@ function pickEventIcon(name) {
   if (EVENT_ICONS[name]) return EVENT_ICONS[name];
   if (name?.startsWith('ui_')) return MousePointerClick;
   return Activity;
+}
+
+function SessionsList({ sessions }) {
+  const [expandedIds, setExpandedIds] = useState(new Set());
+
+  function toggle(id) {
+    const next = new Set(expandedIds);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setExpandedIds(next);
+  }
+
+  return (
+    <Card className="bg-slate-900/50 border-slate-800 shadow-xl">
+      <CardHeader>
+        <CardTitle className="text-sm font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
+          <LayoutList size={14} className="text-emerald-500" /> Sessions ({sessions.length})
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {sessions.length === 0 ? (
+          <p className="text-xs text-slate-600 italic py-4">No sessions detected yet.</p>
+        ) : (
+          sessions.slice(0, 20).map((session) => {
+            const expanded = expandedIds.has(session.id);
+            const startLabel = new Date(session.startMs).toLocaleString();
+            const durMin = Math.round(session.durationSeconds / 60);
+            const durLabel = durMin >= 60 ? `${Math.floor(durMin / 60)}h ${durMin % 60}m` : `${durMin}m`;
+            return (
+              <div key={session.id} className="border border-slate-800 rounded-lg overflow-hidden">
+                <button
+                  onClick={() => toggle(session.id)}
+                  className="w-full flex items-center gap-3 px-3 py-2 hover:bg-slate-800/50 text-left"
+                >
+                  {expanded ? <ChevronDown size={14} className="text-slate-500" /> : <ChevronRight size={14} className="text-slate-500" />}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      {session.cleanClose ? (
+                        <CheckCircle2 size={12} className="text-emerald-500" />
+                      ) : (
+                        <AlertOctagon size={12} className="text-amber-500" />
+                      )}
+                      <span className="text-xs font-bold text-slate-200">{startLabel}</span>
+                    </div>
+                    <div className="text-[10px] text-slate-500 mt-0.5 flex gap-3 flex-wrap">
+                      <span>{durLabel} long</span>
+                      <span>{session.events.length} events</span>
+                      <span>{session.screensViewed.length} screens</span>
+                      <span>{session.clicks} clicks</span>
+                      {session.errors > 0 && <span className="text-rose-400">{session.errors} errors</span>}
+                      {!session.cleanClose && <span className="text-amber-400">no clean close</span>}
+                    </div>
+                  </div>
+                </button>
+                {expanded && (
+                  <div className="px-3 pb-2 pt-1 border-t border-slate-800 bg-slate-950/50">
+                    <div className="text-[10px] text-slate-500 mb-2">
+                      Screens visited: {session.screensViewed.join(' → ') || '—'}
+                    </div>
+                    <div className="max-h-40 overflow-y-auto space-y-1 pr-2">
+                      {session.events.map((event) => {
+                        const info = humanize(event.name);
+                        return (
+                          <div key={event.id} className="text-[11px] text-slate-300 flex gap-2">
+                            <span className="text-slate-600 font-mono">
+                              {new Date(event.receivedAt).toLocaleTimeString()}
+                            </span>
+                            <span>{info.label}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })
+        )}
+      </CardContent>
+    </Card>
+  );
 }
 
 export function ClientAnalytics() {
@@ -101,6 +185,24 @@ export function ClientAnalytics() {
     return { total: events.length, sessionStarts, sessionEnds, totalSessionSeconds, topEvents };
   }, [events]);
 
+  // events come back newest-first from the API; sessions want oldest-first.
+  const sessions = useMemo(() => {
+    const ascending = [...events].sort((a, b) => (a.receivedAt || 0) - (b.receivedAt || 0));
+    return groupIntoSessions(ascending).reverse();                         // show newest session first in UI
+  }, [events]);
+
+  function handleExportCsv() {
+    if (events.length === 0) return;
+    const csv = toCsv(events, [
+      { header: 'Received At', get: (e) => (e.receivedAt ? new Date(e.receivedAt).toISOString() : '') },
+      { header: 'Event Name', get: (e) => e.name },
+      { header: 'Human Label', get: (e) => humanize(e.name).label },
+      { header: 'Params (JSON)', get: (e) => JSON.stringify(e.params || {}) },
+    ]);
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    downloadCsv(`client-${deviceId.slice(0, 12)}-${stamp}.csv`, csv);
+  }
+
   if (!selectedProjectId) {
     return (
       <div className="flex flex-col items-center justify-center h-[70vh] text-slate-500 italic">
@@ -130,6 +232,13 @@ export function ClientAnalytics() {
         </div>
 
         <div className="flex items-center gap-2">
+          <button
+            onClick={handleExportCsv}
+            disabled={events.length === 0}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded text-xs font-bold bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700 disabled:opacity-50"
+          >
+            <Download size={12} /> CSV
+          </button>
           {isLive ? (
             <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-widest bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.2)]">
               <Radio size={12} className="animate-pulse" /> Live now
@@ -184,6 +293,8 @@ export function ClientAnalytics() {
           </CardContent>
         </Card>
       </div>
+
+      <SessionsList sessions={sessions} />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card className="bg-slate-900/50 border-slate-800 md:col-span-2">

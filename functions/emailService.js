@@ -249,6 +249,26 @@ function buildExpiredEmail(clients) {
   return { subject, htmlContent, textContent };
 }
 
+function buildAnomalyEmail(anomalies) {
+  const subject = `Analytics anomaly — ${anomalies.length} spike(s) detected`;
+  const list = anomalies
+    .map(
+      (a) =>
+        `<li><strong>${escapeHtml(a.projectName || a.projectId)}</strong> — ${escapeHtml(
+          a.metric
+        )} yesterday: ${a.value} (7-day avg: ${a.baseline.toFixed(1)}, ${a.ratio.toFixed(1)}x normal)</li>`
+    )
+    .join("");
+  const htmlContent = wrapHtml(
+    "Analytics anomalies detected",
+    `<p>Yesterday's metric(s) crossed the 5x threshold vs the 7-day baseline:</p><ul>${list}</ul>`
+  );
+  const textContent = anomalies
+    .map((a) => `${a.projectName || a.projectId}: ${a.metric} = ${a.value} (baseline ${a.baseline.toFixed(1)}, ${a.ratio.toFixed(1)}x)`)
+    .join("\n");
+  return { subject, htmlContent, textContent };
+}
+
 module.exports = {
   escapeHtml,
   parseRecipients,
@@ -259,4 +279,5 @@ module.exports = {
   buildNewClientEmail,
   buildExpiringEmail,
   buildExpiredEmail,
+  buildAnomalyEmail,
 };

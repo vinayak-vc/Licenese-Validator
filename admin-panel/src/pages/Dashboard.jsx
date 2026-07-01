@@ -2,17 +2,35 @@ import { useEffect, useState } from 'react';
 import { useProject } from '../context/ProjectContext';
 import { Card, CardContent } from '../components/ui/Card';
 import { api, getServerTime } from '../lib/api';
-import { Users, AlertTriangle, ShieldCheck, Cpu, LayoutDashboard } from 'lucide-react';
+import { Users, AlertTriangle, ShieldCheck, Cpu, LayoutDashboard, Activity, Radio, Bug } from 'lucide-react';
+
+function FleetTile({ label, value, color, icon: Icon, pulse }) {
+  return (
+    <div className="flex items-center gap-3 p-3 rounded-lg bg-slate-950 border border-slate-800">
+      <span
+        className="flex items-center justify-center h-10 w-10 rounded-lg shrink-0"
+        style={{ backgroundColor: `${color}20`, color }}
+      >
+        <Icon size={16} className={pulse ? 'animate-pulse' : ''} />
+      </span>
+      <div className="flex-1 min-w-0">
+        <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">{label}</p>
+        <p className="text-2xl font-black text-slate-100">{value.toLocaleString()}</p>
+      </div>
+    </div>
+  );
+}
 
 export function Dashboard() {
   const { selectedProjectId } = useProject();
-  const [stats, setStats] = useState({ 
-    active: 0, 
-    expiringSoon: 0, 
+  const [stats, setStats] = useState({
+    active: 0,
+    expiringSoon: 0,
     new24h: 0,
     topOS: 'N/A',
     topGPU: 'N/A'
   });
+  const [fleet, setFleet] = useState({ online: 0, offline: 0, silent: 0, errors24h: 0, activeInWindow: 0, totalRegistered: 0 });
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -59,6 +77,51 @@ export function Dashboard() {
         const topGPU = Object.keys(gpuCounts).reduce((a, b) => gpuCounts[a] > gpuCounts[b] ? a : b, 'N/A');
 
         setStats({ active, expiringSoon, new24h, topOS, topGPU });
+
+        // Fleet health signals — merged into one pass so we don't re-fetch.
+        // Live = client pinged (lastOnline) within 90s.
+        // Silent = licensed / active trial but no lastOnline ever recorded.
+        // Offline = has lastOnline but stale (> 24h).
+        const LIVE_WINDOW_MS = 90 * 1000;
+        let online = 0;
+        let offline = 0;
+        let silent = 0;
+        for (const client of clients) {
+          if (client.isStaff) continue;
+          const trialEnd = Number(client.trialEnd || 0);
+          if (trialEnd <= now) continue;
+          const lastOnline = Number(client.lastOnline || 0);
+          if (lastOnline === 0) silent += 1;
+          else if (now - lastOnline < LIVE_WINDOW_MS) online += 1;
+          else if (now - lastOnline > oneDayMs) offline += 1;
+        }
+
+        // Errors in last 24h — fetch recent events endpoint and count errors.
+        let errors24h = 0;
+        let activeInWindow = 0;
+        try {
+          const recentResult = await api.getRecentEvents(selectedProjectId, now - oneDayMs, 500);
+          const recent = recentResult.events || [];
+          const activeSet = new Set();
+          recent.forEach((event) => {
+            activeSet.add(event.deviceId);
+            if (event.name === 'error_reported' || event.name === 'exception_caught' || event.name === 'kiosk_hardware_fault') {
+              errors24h += 1;
+            }
+          });
+          activeInWindow = activeSet.size;
+        } catch (recentError) {
+          console.warn('recent events fetch failed', recentError);
+        }
+
+        setFleet({
+          online,
+          offline,
+          silent,
+          errors24h,
+          activeInWindow,
+          totalRegistered: clients.length,
+        });
       } catch (error) {
         console.error("Failed to load dashboard stats", error);
       } finally {
@@ -93,6 +156,26 @@ export function Dashboard() {
         </div>
       </div>
       
+      <Card className="bg-slate-900/50 border-slate-800 shadow-xl">
+        <CardContent className="p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Activity size={16} className="text-cyan-500" />
+              <span className="text-xs font-black uppercase tracking-widest text-slate-400">Fleet Health (last 24h)</span>
+            </div>
+            <span className="text-[10px] text-slate-600">
+              {fleet.activeInWindow} device(s) reported activity · {fleet.totalRegistered} registered
+            </span>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <FleetTile label="Live Now" value={fleet.online} color="#10b981" icon={Radio} pulse={fleet.online > 0} />
+            <FleetTile label="Offline (>24h)" value={fleet.offline} color="#f59e0b" icon={Radio} />
+            <FleetTile label="Silent (never online)" value={fleet.silent} color="#94a3b8" icon={Users} />
+            <FleetTile label="Errors 24h" value={fleet.errors24h} color={fleet.errors24h > 0 ? '#ef4444' : '#334155'} icon={Bug} />
+          </div>
+        </CardContent>
+      </Card>
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <Card className="bg-slate-900/50 border-slate-800 backdrop-blur-sm relative overflow-hidden group">
           <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">

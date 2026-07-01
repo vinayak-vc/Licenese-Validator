@@ -17,6 +17,10 @@ const {
   adminGetNotifications,
   adminListProjectClients,
   adminListProjects,
+  adminFunnel,
+  adminRetention,
+  adminHardwareBreakdown,
+  adminRecentEvents,
   adminRevokeTrial,
   adminSearchAllClients,
   adminUpdateClientSystemInfo,
@@ -26,6 +30,7 @@ const {
   runTrialExpiryScan,
 } = require("./trialService");
 const { runExport: runBigQueryExport } = require("./bigqueryExport");
+const { runAnomalyScan } = require("./anomalyScan");
 
 const JWT_SECRET = defineSecret("JWT_SECRET");
 // Brevo transactional API key, used for admin email notifications. Sender and
@@ -317,6 +322,46 @@ adminApp.get("/projects/:projectId/clients", async (req, res) => {
   }
 });
 
+adminApp.post("/funnel", async (req, res) => {
+  try {
+    const result = await adminFunnel(req.body);
+    return res.status(200).json(result);
+  } catch (error) {
+    return sendError(res, error);
+  }
+});
+
+adminApp.post("/retention", async (req, res) => {
+  try {
+    const result = await adminRetention(req.body);
+    return res.status(200).json(result);
+  } catch (error) {
+    return sendError(res, error);
+  }
+});
+
+adminApp.post("/hardwareBreakdown", async (req, res) => {
+  try {
+    const result = await adminHardwareBreakdown(req.body);
+    return res.status(200).json(result);
+  } catch (error) {
+    return sendError(res, error);
+  }
+});
+
+adminApp.get("/projects/:projectId/recent-events", async (req, res) => {
+  try {
+    const result = await adminRecentEvents(
+      req.params.projectId,
+      Number(req.query.since) || 0,
+      Number(req.query.limit) || 200
+    );
+    return res.status(200).json(result);
+  } catch (error) {
+    return sendError(res, error);
+  }
+});
+
 adminApp.get("/projects/:projectId/clients/:deviceId/events", async (req, res) => {
   try {
     const result = await adminListClientEvents(req.params.projectId, req.params.deviceId, {
@@ -378,6 +423,21 @@ exports.trialExpiryDigest = onSchedule(
   },
   async () => {
     await runTrialExpiryScan();
+  }
+);
+
+// Daily anomaly scan: compares yesterday's per-project metrics against a
+// rolling 7-day baseline and emails admins on 5x+ spikes (error count OR
+// total event count). Free (single scheduled invocation per day).
+exports.analyticsAnomalyScan = onSchedule(
+  {
+    schedule: "0 9 * * *",
+    timeZone: "Etc/UTC",
+    region: "us-central1",
+    secrets: [BREVO_API_KEY],
+  },
+  async () => {
+    await runAnomalyScan();
   }
 );
 
