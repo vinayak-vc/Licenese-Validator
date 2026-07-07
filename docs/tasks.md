@@ -8,6 +8,7 @@
 - Added `logEvents` batch endpoint (`trialService.js` + `index.js`) writing
   to `clients/{clientDocId}/events`.
 - Added 6 tests; full suite 33/33 passing.
+- Fixed flag rendering on Windows by replacing emoji flags with `flagcdn.com` images in the admin panel.
 
 ## Next up
 

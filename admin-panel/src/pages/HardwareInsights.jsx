@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card'
 import { api } from '../lib/api';
 import { readSystemInfo, countryToFlag } from '../lib/systemInfo';
 import { Cpu, HardDrive, Monitor, PieChart, BarChart3, Globe } from 'lucide-react';
+import { FlagIcon } from '../components/ui/FlagIcon';
 
 export function HardwareInsights() {
   const { selectedProjectId } = useProject();
@@ -175,7 +176,7 @@ export function HardwareInsights() {
                     <div key={name} className="space-y-1.5">
                       <div className="flex justify-between text-xs font-bold">
                         <span className="text-slate-200 truncate pr-4 flex items-center gap-1.5" title={name}>
-                          {flag?.flag && <span className="text-sm leading-none">{flag.flag}</span>}
+                          <FlagIcon flag={flag} />
                           {name}
                         </span>
                         <span className="text-slate-500 shrink-0">{count}</span>

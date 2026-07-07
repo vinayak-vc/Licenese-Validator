@@ -29,6 +29,9 @@ build passes. Undeployed. Firestore rules locked down but also undeployed.
 - `admin-panel/src/App.jsx`, `components/layout/Sidebar.jsx` — routing +
   sidebar entry for `/analytics`.
 - `postman/Trial-Licensing.postman_collection.json` — `logEvents` request.
+- `admin-panel/src/lib/systemInfo.js` — updated `countryToFlag` to return ISO codes for images.
+- `admin-panel/src/components/ui/FlagIcon.jsx` (new) — component to render `flagcdn.com` images.
+- `admin-panel/src/pages/ClientRegistry.jsx`, `GlobalSearch.jsx`, `HardwareInsights.jsx`, `components/ClientDetailModal.jsx` — integrated `FlagIcon` to bypass Windows' missing native flag emojis.
 
 ### Unity/unityvc-base-project
 

@@ -16,6 +16,7 @@ import { cn } from '../lib/utils';
 import { readSystemInfo, countryToFlag } from '../lib/systemInfo';
 import { ClientDetailModal } from '../components/ClientDetailModal';
 import { Sparkline } from '../components/charts/Sparkline';
+import { FlagIcon } from '../components/ui/FlagIcon';
 
 function StatusPill({ status, trialEnd }) {
   const now = getServerTime();
@@ -368,7 +369,7 @@ export function ClientRegistry() {
                       <td className="px-6 py-4">
                         <div className="flex flex-col">
                           <span className="flex items-center gap-1.5 text-slate-200 font-bold tracking-tight truncate max-w-[180px]" title={info.deviceName ? `${info.deviceName} • ${client.deviceId}` : client.deviceId}>
-                            {flag?.flag && <span className="text-sm leading-none shrink-0">{flag.flag}</span>}
+                            <FlagIcon flag={flag} />
                             <span className={cn("truncate", !info.deviceName && "font-mono")}>{displayName}</span>
                           </span>
                           <div className="flex items-center gap-2 mt-1">
