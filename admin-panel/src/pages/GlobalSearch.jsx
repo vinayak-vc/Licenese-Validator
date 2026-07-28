@@ -6,6 +6,7 @@ import { api } from '../lib/api';
 import { useProject } from '../context/ProjectContext';
 import { readSystemInfo, countryToFlag } from '../lib/systemInfo';
 import { cn } from '../lib/utils';
+import { FlagIcon } from '../components/ui/FlagIcon';
 
 function OsIcon({ os }) {
   const o = (os || '').toLowerCase();
@@ -148,7 +149,7 @@ export function GlobalSearch() {
                     <td className="px-5 py-3.5">
                       <div className="flex flex-col">
                         <span className="flex items-center gap-1.5 text-slate-200 font-medium text-xs truncate max-w-[160px]">
-                          {flag?.flag && <span className="text-sm shrink-0">{flag.flag}</span>}
+                          <FlagIcon flag={flag} />
                           <span className={cn("truncate", !info.deviceName && "font-mono")} title={client.deviceId}>
                             {displayName}
                           </span>

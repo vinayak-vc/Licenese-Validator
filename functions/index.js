@@ -408,6 +408,11 @@ exports.adminApi = onRequest(
     cors: true,
     region: "us-central1",
     secrets: [JWT_SECRET, BREVO_API_KEY],
+    // Keep one warm instance so admin-panel preflight/requests don't get
+    // aborted with 429 "no available instance" during cold starts.
+    minInstances: 1,
+    maxInstances: 10,
+    concurrency: 80,
   },
   adminApp
 );

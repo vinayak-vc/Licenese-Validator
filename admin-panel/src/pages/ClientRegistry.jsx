@@ -16,6 +16,7 @@ import { cn } from '../lib/utils';
 import { readSystemInfo, countryToFlag } from '../lib/systemInfo';
 import { ClientDetailModal } from '../components/ClientDetailModal';
 import { Sparkline } from '../components/charts/Sparkline';
+import { FlagIcon } from '../components/ui/FlagIcon';
 
 function StatusPill({ status, trialEnd }) {
   const now = getServerTime();
@@ -368,7 +369,7 @@ export function ClientRegistry() {
                       <td className="px-6 py-4">
                         <div className="flex flex-col">
                           <span className="flex items-center gap-1.5 text-slate-200 font-bold tracking-tight truncate max-w-[180px]" title={info.deviceName ? `${info.deviceName} • ${client.deviceId}` : client.deviceId}>
-                            {flag?.flag && <span className="text-sm leading-none shrink-0">{flag.flag}</span>}
+                            <FlagIcon flag={flag} />
                             <span className={cn("truncate", !info.deviceName && "font-mono")}>{displayName}</span>
                           </span>
                           <div className="flex items-center gap-2 mt-1">
@@ -476,78 +477,26 @@ export function ClientRegistry() {
                             <Zap size={14} />
                           </Button>
 
-                          {/* Calendar: opens date picker with presets */}
-                          <div className="relative">
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className={cn(
-                                "h-8 w-8 transition-all",
-                                datePickerOpen === client.deviceId
-                                  ? "bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-500/40"
-                                  : "hover:bg-emerald-500/10 hover:text-emerald-500"
-                              )}
-                              title="Set Expiry Date"
-                              onClick={() => {
-                                setDatePickerDate('');
-                                setDatePickerOpen(datePickerOpen === client.deviceId ? null : client.deviceId);
-                                setRevokeReasonOpen(null);
-                                setConfirmRevoke(null);
-                              }}
-                            >
-                              <Calendar size={14} />
-                            </Button>
-
-                            {datePickerOpen === client.deviceId && (
-                              <div className="absolute right-0 bottom-full mb-2 w-52 bg-slate-950 border border-slate-800 rounded-xl shadow-2xl z-50 p-3 ring-1 ring-white/10">
-                                <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-2">Set Expiry</p>
-
-                                <div className="grid grid-cols-2 gap-1 mb-3">
-                                  {[
-                                    { label: '+30 Days', days: 30 },
-                                    { label: '+60 Days', days: 60 },
-                                    { label: '+6 Months', days: 183 },
-                                    { label: '+1 Year', days: 365 },
-                                  ].map(({ label, days }) => (
-                                    <button
-                                      key={label}
-                                      onClick={() => { handleExtend(client.deviceId, days); setDatePickerOpen(null); }}
-                                      className="text-[11px] font-medium text-slate-300 hover:bg-emerald-500/10 hover:text-emerald-400 rounded-md px-2 py-1.5 transition-colors text-center border border-slate-800 hover:border-emerald-500/30"
-                                    >
-                                      {label}
-                                    </button>
-                                  ))}
-                                </div>
-
-                                <div className="border-t border-slate-800 pt-3 space-y-2">
-                                  <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Manual Date</p>
-                                  <input
-                                    type="date"
-                                    value={datePickerDate}
-                                    min={new Date(getServerTime()).toISOString().split('T')[0]}
-                                    onChange={(e) => setDatePickerDate(e.target.value)}
-                                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 [color-scheme:dark]"
-                                  />
-                                  <button
-                                    disabled={!datePickerDate}
-                                    onClick={() => handleExtendToDate(client.deviceId, datePickerDate)}
-                                    className="w-full text-[11px] font-bold text-slate-950 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 disabled:cursor-not-allowed rounded-md px-2 py-1.5 transition-colors"
-                                  >
-                                    Apply Date
-                                  </button>
-                                </div>
-
-                                <div className="border-t border-slate-800 mt-2 pt-1">
-                                  <button
-                                    onClick={() => setDatePickerOpen(null)}
-                                    className="w-full text-center py-1 text-[9px] font-bold text-slate-500 hover:text-slate-300"
-                                  >
-                                    Cancel
-                                  </button>
-                                </div>
-                              </div>
+                          {/* Calendar: opens full-screen date picker modal */}
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className={cn(
+                              "h-8 w-8 transition-all",
+                              datePickerOpen === client.deviceId
+                                ? "bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-500/40"
+                                : "hover:bg-emerald-500/10 hover:text-emerald-500"
                             )}
-                          </div>
+                            title="Set Expiry Date"
+                            onClick={() => {
+                              setDatePickerDate('');
+                              setDatePickerOpen(client.deviceId);
+                              setRevokeReasonOpen(null);
+                              setConfirmRevoke(null);
+                            }}
+                          >
+                            <Calendar size={14} />
+                          </Button>
                           
                           <div className="relative">
                             <Button
@@ -668,6 +617,95 @@ export function ClientRegistry() {
           }}
         />
       )}
+
+      {datePickerOpen && (() => {
+        const client = clients.find(c => c.deviceId === datePickerOpen);
+        if (!client) return null;
+        const info = readSystemInfo(client.systemInfo);
+        const displayName = info.deviceName || client.deviceId;
+        const now = getServerTime();
+        const currentEnd = Number(client.trialEnd || 0);
+        const close = () => { setDatePickerOpen(null); setDatePickerDate(''); };
+        return (
+          <div
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200"
+            onClick={close}
+          >
+            <div
+              className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl ring-1 ring-white/10 overflow-hidden animate-in zoom-in-95 duration-200"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-start justify-between px-6 py-5 border-b border-slate-800 bg-slate-950/50">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 text-emerald-400 mb-1">
+                    <Calendar size={16} />
+                    <span className="text-[10px] font-black uppercase tracking-[0.2em]">Set Expiry</span>
+                  </div>
+                  <p className="text-sm font-bold text-slate-100 truncate" title={displayName}>{displayName}</p>
+                  <p className="text-[11px] text-slate-500 font-mono mt-0.5">
+                    Current: {new Date(currentEnd).toLocaleDateString()} · {currentEnd > now ? `expires in ${formatDistanceToNow(currentEnd)}` : `expired ${formatDistanceToNow(currentEnd)} ago`}
+                  </p>
+                </div>
+                <button
+                  onClick={close}
+                  className="h-8 w-8 shrink-0 inline-flex items-center justify-center rounded-lg text-slate-500 hover:bg-slate-800 hover:text-slate-200 transition-colors"
+                >
+                  <XCircle size={18} />
+                </button>
+              </div>
+
+              <div className="px-6 py-5 space-y-5">
+                <div>
+                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Quick Presets</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { label: '+30 Days', days: 30 },
+                      { label: '+60 Days', days: 60 },
+                      { label: '+6 Months', days: 183 },
+                      { label: '+1 Year', days: 365 },
+                    ].map(({ label, days }) => (
+                      <button
+                        key={label}
+                        onClick={() => { handleExtend(client.deviceId, days); close(); }}
+                        className="text-sm font-medium text-slate-200 hover:bg-emerald-500/10 hover:text-emerald-400 rounded-lg px-3 py-2.5 transition-colors text-center border border-slate-800 hover:border-emerald-500/40"
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="border-t border-slate-800 pt-5 space-y-3">
+                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Manual Date</p>
+                  <input
+                    type="date"
+                    value={datePickerDate}
+                    min={new Date(now).toISOString().split('T')[0]}
+                    onChange={(e) => setDatePickerDate(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500/50 [color-scheme:dark]"
+                  />
+                  <button
+                    disabled={!datePickerDate}
+                    onClick={() => handleExtendToDate(client.deviceId, datePickerDate)}
+                    className="w-full text-sm font-bold text-slate-950 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg px-3 py-2.5 transition-colors"
+                  >
+                    Apply Date
+                  </button>
+                </div>
+              </div>
+
+              <div className="px-6 py-4 border-t border-slate-800 bg-slate-950/50">
+                <button
+                  onClick={close}
+                  className="w-full text-center py-2 text-xs font-bold text-slate-500 hover:text-slate-300 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
