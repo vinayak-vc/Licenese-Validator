@@ -1,8 +1,11 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // All reads/writes go through Cloud Functions using the Admin SDK, which
+    // bypasses these rules. Direct client SDK access is intentionally denied
+    // since the Firebase web config (and this rule set) is not a secret.
     match /{document=**} {
-      allow read, write: if true;
+      allow read, write: if false;
     }
   }
 }

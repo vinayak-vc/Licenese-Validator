@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { X, Cpu, HardDrive, Monitor, Smartphone, Boxes, Clock, MapPin, Pencil, Save, Loader2 } from 'lucide-react';
 import { groupSystemInfo, readSystemInfo, countryToFlag, SYSTEM_INFO_FORM, toNested } from '../lib/systemInfo';
 import { api } from '../lib/api';
+import { FlagIcon } from './ui/FlagIcon';
 import { useToast } from '../context/ToastContext';
 import { Button } from './ui/Button';
 import { cn } from '../lib/utils';
@@ -105,7 +106,7 @@ export function ClientDetailModal({ client, projectId, onClose, onSaved }) {
         <div className="flex items-start justify-between p-6 border-b border-slate-800">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              {flag?.flag && <span className="text-2xl leading-none">{flag.flag}</span>}
+              <FlagIcon flag={flag} className="!w-8 !h-6" />
               <h3 className="text-lg font-black text-slate-100 truncate">{title}</h3>
             </div>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1 text-[11px] font-mono text-slate-500">

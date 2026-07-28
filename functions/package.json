@@ -4,7 +4,7 @@
   "description": "Firebase Cloud Functions backend for trial licensing system",
   "main": "index.js",
   "engines": {
-    "node": "20"
+    "node": "22"
   },
   "scripts": {
     "serve": "firebase emulators:start --only functions",
@@ -16,6 +16,7 @@
     "send-test-email": "node scripts/sendTestEmail.js"
   },
   "dependencies": {
+    "@google-cloud/bigquery": "^7.9.4",
     "express": "^4.21.2",
     "firebase-admin": "^12.7.0",
     "firebase-functions": "^5.1.1",

@@ -185,6 +185,59 @@
           }
         }
       ]
+    },
+    {
+      "name": "4) Log Events (batch)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"projectApiKey\": \"{{projectApiKey}}\",\n  \"deviceId\": \"{{deviceId}}\",\n  \"events\": [\n    { \"name\": \"session_start\", \"timestamp\": 1710000000000, \"params\": { \"app_type\": \"Game\" } },\n    { \"name\": \"screen_view\", \"timestamp\": 1710000001000, \"params\": { \"screen_name\": \"main_menu\", \"app_type\": \"Game\" } },\n    { \"name\": \"ui_click:main_menu/PlayButton\", \"timestamp\": 1710000002000, \"params\": { \"ui_name\": \"PlayButton\" } }\n  ]\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/logEvents",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "logEvents"
+          ]
+        },
+        "description": "Batch-log analytics events for a registered device. Requires the deviceId to already be a registered client via startTrial or adminCreateClient."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status is 200 or 404 (client not registered)', function () {",
+              "  pm.expect([200, 404]).to.include(pm.response.code);",
+              "});",
+              "const json = pm.response.json();",
+              "if (pm.response.code === 200) {",
+              "  pm.test('statusCode is 1300 (EVENTS_LOGGED)', function () {",
+              "    pm.expect(json.statusCode).to.eql('1300');",
+              "  });",
+              "  pm.test('count matches request', function () {",
+              "    pm.expect(json.count).to.eql(3);",
+              "  });",
+              "} else {",
+              "  pm.test('CLIENT_NOT_FOUND response', function () {",
+              "    pm.expect(json.statusCode).to.eql('7010');",
+              "    pm.expect(json.error).to.eql('CLIENT_NOT_FOUND');",
+              "  });",
+              "}"
+            ]
+          }
+        }
+      ]
     }
   ],
   "variable": [

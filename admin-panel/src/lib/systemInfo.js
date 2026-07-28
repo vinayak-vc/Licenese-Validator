@@ -173,12 +173,15 @@ function isoToEmoji(iso) {
     .replace(/./g, (c) => String.fromCodePoint(127397 + c.charCodeAt(0)));
 }
 
-// Returns { flag, label } or null when the country is unknown/empty.
+// Returns { iso, flag, label } or null when the country is unknown/empty.
 export function countryToFlag(country) {
   if (!country || typeof country !== 'string') return null;
   const label = country.trim();
   const cleaned = label.replace(/\s*\(local\)\s*$/i, '').trim().toLowerCase();
-  const iso = COUNTRY_ISO[cleaned];
-  if (!iso) return { flag: null, label };
-  return { flag: isoToEmoji(iso), label };
+  let iso = COUNTRY_ISO[cleaned];
+  if (!iso && cleaned.length === 2) {
+    iso = cleaned.toUpperCase();
+  }
+  if (!iso) return { iso: null, flag: null, label };
+  return { iso: iso.toLowerCase(), flag: isoToEmoji(iso), label };
 }

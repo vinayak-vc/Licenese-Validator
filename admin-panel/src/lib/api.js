@@ -64,4 +64,26 @@ export const api = {
   revokeTrial: (data) => callAdmin('POST', '/revokeTrial', data),
   searchClients: (q) => callAdmin('GET', `/clients/search?q=${encodeURIComponent(q)}`),
   getNotifications: () => callAdmin('GET', '/notifications'),
+  getClientEvents: (projectId, deviceId, { limit = 200, name = '' } = {}) => {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (name) params.set('name', name);
+    return callAdmin(
+      'GET',
+      `/projects/${encodeURIComponent(projectId)}/clients/${encodeURIComponent(deviceId)}/events?${params.toString()}`
+    );
+  },
+  getFunnel: (projectId, steps, windowDays = 30) =>
+    callAdmin('POST', '/funnel', { projectId, steps, windowDays }),
+  getRetention: (projectId, windowDays = 30) =>
+    callAdmin('POST', '/retention', { projectId, windowDays }),
+  getHardwareBreakdown: (projectId, windowDays = 30) =>
+    callAdmin('POST', '/hardwareBreakdown', { projectId, windowDays }),
+  getRecentEvents: (projectId, sinceMs, limit = 200) => {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (sinceMs) params.set('since', String(sinceMs));
+    return callAdmin(
+      'GET',
+      `/projects/${encodeURIComponent(projectId)}/recent-events?${params.toString()}`
+    );
+  },
 };

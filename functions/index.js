@@ -13,16 +13,24 @@ const {
   adminCreateProject,
   adminExtendTrial,
   adminListClients,
+  adminListClientEvents,
   adminGetNotifications,
   adminListProjectClients,
   adminListProjects,
+  adminFunnel,
+  adminRetention,
+  adminHardwareBreakdown,
+  adminRecentEvents,
   adminRevokeTrial,
   adminSearchAllClients,
   adminUpdateClientSystemInfo,
   startTrial,
   verifyTrial,
+  logEvents,
   runTrialExpiryScan,
 } = require("./trialService");
+const { runExport: runBigQueryExport } = require("./bigqueryExport");
+const { runAnomalyScan } = require("./anomalyScan");
 
 const JWT_SECRET = defineSecret("JWT_SECRET");
 // Brevo transactional API key, used for admin email notifications. Sender and
@@ -172,6 +180,27 @@ verifyTrialApp.all("*", (req, res) => {
   );
 });
 
+const logEventsApp = createBaseApp();
+logEventsApp.post("/", async (req, res) => {
+  try {
+    const result = await logEvents(req.body);
+    return res.status(200).json(result);
+  } catch (error) {
+    return sendError(res, error);
+  }
+});
+
+logEventsApp.all("*", (req, res) => {
+  res.status(405).json(
+    responseBody({
+      message: "Method not allowed",
+      token: "",
+      statusCode: CODES.METHOD_NOT_ALLOWED,
+      error: "METHOD_NOT_ALLOWED",
+    })
+  );
+});
+
 exports.startTrial = onRequest(
   {
     cors: true,
@@ -188,6 +217,14 @@ exports.verifyTrial = onRequest(
     secrets: [JWT_SECRET],
   },
   verifyTrialApp
+);
+
+exports.logEvents = onRequest(
+  {
+    cors: true,
+    region: "us-central1",
+  },
+  logEventsApp
 );
 
 const adminApp = createBaseApp();
@@ -285,6 +322,58 @@ adminApp.get("/projects/:projectId/clients", async (req, res) => {
   }
 });
 
+adminApp.post("/funnel", async (req, res) => {
+  try {
+    const result = await adminFunnel(req.body);
+    return res.status(200).json(result);
+  } catch (error) {
+    return sendError(res, error);
+  }
+});
+
+adminApp.post("/retention", async (req, res) => {
+  try {
+    const result = await adminRetention(req.body);
+    return res.status(200).json(result);
+  } catch (error) {
+    return sendError(res, error);
+  }
+});
+
+adminApp.post("/hardwareBreakdown", async (req, res) => {
+  try {
+    const result = await adminHardwareBreakdown(req.body);
+    return res.status(200).json(result);
+  } catch (error) {
+    return sendError(res, error);
+  }
+});
+
+adminApp.get("/projects/:projectId/recent-events", async (req, res) => {
+  try {
+    const result = await adminRecentEvents(
+      req.params.projectId,
+      Number(req.query.since) || 0,
+      Number(req.query.limit) || 200
+    );
+    return res.status(200).json(result);
+  } catch (error) {
+    return sendError(res, error);
+  }
+});
+
+adminApp.get("/projects/:projectId/clients/:deviceId/events", async (req, res) => {
+  try {
+    const result = await adminListClientEvents(req.params.projectId, req.params.deviceId, {
+      limit: req.query.limit,
+      name: req.query.name,
+    });
+    return res.status(200).json(result);
+  } catch (error) {
+    return sendError(res, error);
+  }
+});
+
 adminApp.get("/notifications", async (req, res) => {
   try {
     const result = await adminGetNotifications();
@@ -319,6 +408,11 @@ exports.adminApi = onRequest(
     cors: true,
     region: "us-central1",
     secrets: [JWT_SECRET, BREVO_API_KEY],
+    // Keep one warm instance so admin-panel preflight/requests don't get
+    // aborted with 429 "no available instance" during cold starts.
+    minInstances: 1,
+    maxInstances: 10,
+    concurrency: 80,
   },
   adminApp
 );
@@ -334,5 +428,37 @@ exports.trialExpiryDigest = onSchedule(
   },
   async () => {
     await runTrialExpiryScan();
+  }
+);
+
+// Daily anomaly scan: compares yesterday's per-project metrics against a
+// rolling 7-day baseline and emails admins on 5x+ spikes (error count OR
+// total event count). Free (single scheduled invocation per day).
+exports.analyticsAnomalyScan = onSchedule(
+  {
+    schedule: "0 9 * * *",
+    timeZone: "Etc/UTC",
+    region: "us-central1",
+    secrets: [BREVO_API_KEY],
+  },
+  async () => {
+    await runAnomalyScan();
+  }
+);
+
+// Hourly BigQuery export using batch loads (free tier). Auto-creates the
+// dataset/table on first run and sets a 90-day partition expiration so
+// storage stays flat. See functions/bigqueryExport.js for the design notes.
+exports.exportEventsToBigQuery = onSchedule(
+  {
+    schedule: "0 * * * *",
+    timeZone: "Etc/UTC",
+    region: "us-central1",
+    timeoutSeconds: 540,
+    memory: "512MiB",
+  },
+  async () => {
+    const result = await runBigQueryExport();
+    console.log(`exportEventsToBigQuery: exported ${result.exported} row(s)`);
   }
 );

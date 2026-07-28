@@ -10,6 +10,10 @@ import { IntegrationHub } from './pages/IntegrationHub';
 import { ProjectSettings } from './pages/ProjectSettings';
 
 import { HardwareInsights } from './pages/HardwareInsights';
+import { AnalyticsDashboard } from './pages/AnalyticsDashboard';
+import { ClientAnalytics } from './pages/ClientAnalytics';
+import { Insights } from './pages/Insights';
+import { LiveEvents } from './pages/LiveEvents';
 import { GlobalSearch } from './pages/GlobalSearch';
 import { NotificationProvider } from './context/NotificationContext';
 
@@ -26,6 +30,10 @@ function App() {
               <Route path="clients" element={<ClientRegistry />} />
               <Route path="search" element={<GlobalSearch />} />
               <Route path="hardware" element={<HardwareInsights />} />
+              <Route path="analytics" element={<AnalyticsDashboard />} />
+              <Route path="insights" element={<Insights />} />
+              <Route path="live" element={<LiveEvents />} />
+              <Route path="clients/:deviceId/analytics" element={<ClientAnalytics />} />
               <Route path="integration" element={<IntegrationHub />} />
               <Route path="settings" element={<ProjectSettings />} />
             </Route>

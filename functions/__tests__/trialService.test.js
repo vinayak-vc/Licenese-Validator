@@ -32,6 +32,7 @@ const {
   adminListProjectClients,
   startTrial,
   verifyTrial,
+  logEvents,
 } = require("../trialService");
 
 function mockProjectsCollection({ projectDoc, projectByApiKey }) {
@@ -288,5 +289,138 @@ describe("admin project APIs", () => {
     const response = await adminListProjects();
     expect(response.statusCode).toBe(CODES.ADMIN_PROJECTS_LISTED);
     expect(response.projects[0].projectApiKey).toBe("full-project-api-key");
+  });
+
+  it("adminCreateProject defaults applicationType to Game and stores an explicit value", async () => {
+    uuidv4.mockReturnValue("11112222333344445555666677778888");
+    const create = jest.fn().mockResolvedValue(undefined);
+    db.collection.mockImplementation((name) => {
+      if (name === "projects") {
+        return {
+          doc: jest.fn().mockReturnValue({
+            get: jest.fn().mockResolvedValue({ exists: false }),
+            create,
+          }),
+        };
+      }
+      return {};
+    });
+
+    const response = await adminCreateProject({ name: "Kiosk App" });
+    expect(response.project.applicationType).toBe("Game");
+    expect(create.mock.calls[0][0].applicationType).toBe("Game");
+
+    const response2 = await adminCreateProject({ name: "Kiosk App 2", applicationType: "Kiosk" });
+    expect(response2.project.applicationType).toBe("Kiosk");
+  });
+
+  it("adminCreateProject rejects an unknown applicationType", async () => {
+    await expect(
+      adminCreateProject({ name: "Bad App", applicationType: "NotARealType" })
+    ).rejects.toBeInstanceOf(TrialServiceError);
+  });
+});
+
+describe("logEvents", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  function mockClientsCollectionForEvents({ clientExists, eventCreate, batchCommit }) {
+    const clientUpdate = jest.fn().mockResolvedValue(undefined);
+    const eventsCollection = { doc: jest.fn(() => ({ id: "event-doc-id" })) };
+    const clientDocRef = {
+      get: jest.fn().mockResolvedValue({ exists: clientExists }),
+      update: clientUpdate,
+      collection: jest.fn(() => eventsCollection),
+    };
+    db.batch = jest.fn(() => ({
+      create: eventCreate || jest.fn(),
+      commit: batchCommit || jest.fn().mockResolvedValue(undefined),
+    }));
+    return {
+      doc: jest.fn(() => clientDocRef),
+      clientUpdate,
+    };
+  }
+
+  it("logs a batch of events for a registered client", async () => {
+    const eventCreate = jest.fn();
+    const batchCommit = jest.fn().mockResolvedValue(undefined);
+    let clientsCollection;
+    db.collection.mockImplementation((name) => {
+      if (name === "projects") {
+        return mockProjectsCollection({
+          projectByApiKey: { id: "proj1", name: "Project 1", active: true },
+        });
+      }
+      if (name === "clients") {
+        clientsCollection = mockClientsCollectionForEvents({
+          clientExists: true,
+          eventCreate,
+          batchCommit,
+        });
+        return clientsCollection;
+      }
+      return {};
+    });
+
+    const response = await logEvents({
+      projectApiKey: "valid-api-key",
+      deviceId: "device-1",
+      events: [
+        { name: "screen_view", params: { screen: "menu" }, timestamp: 1710000000000 },
+        { name: "button_click", params: { id: 42, ok: true } },
+      ],
+    });
+
+    expect(response.statusCode).toBe(CODES.EVENTS_LOGGED);
+    expect(response.count).toBe(2);
+    expect(eventCreate).toHaveBeenCalledTimes(2);
+    expect(batchCommit).toHaveBeenCalledTimes(1);
+    expect(eventCreate.mock.calls[0][1].name).toBe("screen_view");
+    expect(eventCreate.mock.calls[0][1].params).toEqual({ screen: "menu" });
+  });
+
+  it("rejects events for a device that isn't a registered client", async () => {
+    db.collection.mockImplementation((name) => {
+      if (name === "projects") {
+        return mockProjectsCollection({
+          projectByApiKey: { id: "proj1", name: "Project 1", active: true },
+        });
+      }
+      if (name === "clients") {
+        return mockClientsCollectionForEvents({ clientExists: false });
+      }
+      return {};
+    });
+
+    await expect(
+      logEvents({
+        projectApiKey: "valid-api-key",
+        deviceId: "unregistered-device",
+        events: [{ name: "screen_view" }],
+      })
+    ).rejects.toMatchObject({ statusCode: CODES.CLIENT_NOT_FOUND });
+  });
+
+  it("rejects an empty or oversized events array", async () => {
+    await expect(
+      logEvents({ projectApiKey: "k", deviceId: "d", events: [] })
+    ).rejects.toBeInstanceOf(TrialServiceError);
+
+    await expect(
+      logEvents({
+        projectApiKey: "k",
+        deviceId: "d",
+        events: Array.from({ length: 51 }, () => ({ name: "x" })),
+      })
+    ).rejects.toBeInstanceOf(TrialServiceError);
+  });
+
+  it("rejects an event with a missing name", async () => {
+    await expect(
+      logEvents({ projectApiKey: "k", deviceId: "d", events: [{ params: {} }] })
+    ).rejects.toBeInstanceOf(TrialServiceError);
   });
 });
