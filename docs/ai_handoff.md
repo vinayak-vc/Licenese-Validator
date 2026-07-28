@@ -32,6 +32,8 @@ build passes. Undeployed. Firestore rules locked down but also undeployed.
 - `admin-panel/src/lib/systemInfo.js` — updated `countryToFlag` to return ISO codes for images.
 - `admin-panel/src/components/ui/FlagIcon.jsx` (new) — component to render `flagcdn.com` images.
 - `admin-panel/src/pages/ClientRegistry.jsx`, `GlobalSearch.jsx`, `HardwareInsights.jsx`, `components/ClientDetailModal.jsx` — integrated `FlagIcon` to bypass Windows' missing native flag emojis.
+- `admin-panel/src/lib/sessionGrouping.js`, `ClientAnalytics.jsx` — implemented Solution A (clean session evaluation based on error absence during idle timeout / stream tail).
+- `Unity/unityvc-base-project/.../AnalyticsLifecycleTracker.cs` — implemented Solution C (next-boot session recovery via PlayerPrefs, 10s heartbeat, and error tracking).
 
 ### Unity/unityvc-base-project
 

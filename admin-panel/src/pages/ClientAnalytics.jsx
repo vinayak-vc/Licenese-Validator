@@ -164,32 +164,34 @@ export function ClientAnalytics() {
   const isLive = lastOnlineMs > 0 && nowTick - lastOnlineMs < LIVE_WINDOW_MS;
   const lastSeenLabel = lastOnlineMs > 0 ? formatDistanceToNow(new Date(lastOnlineMs), { addSuffix: true }) : 'never';
 
-  const stats = useMemo(() => {
-    const humanCounts = {};
-    let sessionStarts = 0;
-    let sessionEnds = 0;
-    let totalSessionSeconds = 0;
-
-    events.forEach((event) => {
-      const info = humanize(event.name);
-      humanCounts[info.label] = (humanCounts[info.label] || 0) + 1;
-      if (event.name === 'session_start' || event.name === 'app_open') sessionStarts++;
-      if (event.name === 'session_end') {
-        sessionEnds++;
-        const duration = Number(event.params?.duration_seconds);
-        if (Number.isFinite(duration)) totalSessionSeconds += duration;
-      }
-    });
-
-    const topEvents = Object.entries(humanCounts).sort((a, b) => b[1] - a[1]).slice(0, 8);
-    return { total: events.length, sessionStarts, sessionEnds, totalSessionSeconds, topEvents };
-  }, [events]);
-
   // events come back newest-first from the API; sessions want oldest-first.
   const sessions = useMemo(() => {
     const ascending = [...events].sort((a, b) => (a.receivedAt || 0) - (b.receivedAt || 0));
     return groupIntoSessions(ascending).reverse();                         // show newest session first in UI
   }, [events]);
+
+  const stats = useMemo(() => {
+    const humanCounts = {};
+    let sessionStarts = sessions.length;
+    let sessionEnds = sessions.filter(s => s.cleanClose).length;
+    let totalSessionSeconds = 0;
+
+    events.forEach((event) => {
+      const info = humanize(event.name);
+      humanCounts[info.label] = (humanCounts[info.label] || 0) + 1;
+      if (event.name === 'session_end') {
+        const duration = Number(event.params?.duration_seconds);
+        if (Number.isFinite(duration)) totalSessionSeconds += duration;
+      }
+    });
+
+    sessions.forEach((s) => {
+      totalSessionSeconds += s.durationSeconds || 0;
+    });
+
+    const topEvents = Object.entries(humanCounts).sort((a, b) => b[1] - a[1]).slice(0, 8);
+    return { total: events.length, sessionStarts, sessionEnds, totalSessionSeconds, topEvents };
+  }, [events, sessions]);
 
   function handleExportCsv() {
     if (events.length === 0) return;

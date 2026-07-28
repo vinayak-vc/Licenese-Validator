@@ -44,8 +44,9 @@ export function groupIntoSessions(eventsAsc) {
     if (!current) {
       openSession(event, event.name === 'session_start' || event.name === 'app_open');
     } else if (eventTime - (current.events[current.events.length - 1]?.receivedAt || current.startMs) > INACTIVITY_GAP_MS) {
-      // Long idle gap - close prior implicitly, start new.
-      closeSession(current.events[current.events.length - 1] || event, false);
+      // Long idle gap - close prior implicitly. If no errors occurred, mark clean close.
+      const lastEvt = current.events[current.events.length - 1] || event;
+      closeSession(lastEvt, current.errors === 0);
       openSession(event, event.name === 'session_start' || event.name === 'app_open');
     }
 
@@ -67,9 +68,10 @@ export function groupIntoSessions(eventsAsc) {
   });
 
   // If there's still an open session at the end, close it against its own tail.
+  // Mark clean if no errors occurred in this session.
   if (current) {
     const tail = current.events[current.events.length - 1];
-    if (tail) closeSession(tail, false);
+    if (tail) closeSession(tail, current.errors === 0);
   }
 
   return sessions.map((session) => ({

@@ -9,6 +9,7 @@
   to `clients/{clientDocId}/events`.
 - Added 6 tests; full suite 33/33 passing.
 - Fixed flag rendering on Windows by replacing emoji flags with `flagcdn.com` images in the admin panel.
+- Implemented hybrid Session Close tracking (Solution A server-side error check in `sessionGrouping.js` + Solution C next-boot recovery & heartbeat in `AnalyticsLifecycleTracker.cs`).
 
 ## Next up
 
