@@ -31,9 +31,11 @@ build passes. Undeployed. Firestore rules locked down but also undeployed.
 - `postman/Trial-Licensing.postman_collection.json` — `logEvents` request.
 - `admin-panel/src/lib/systemInfo.js` — updated `countryToFlag` to return ISO codes for images.
 - `admin-panel/src/components/ui/FlagIcon.jsx` (new) — component to render `flagcdn.com` images.
-- `admin-panel/src/pages/ClientRegistry.jsx`, `GlobalSearch.jsx`, `HardwareInsights.jsx`, `components/ClientDetailModal.jsx` — integrated `FlagIcon` to bypass Windows' missing native flag emojis.
+- `admin-panel/src/pages/ClientRegistry.jsx`, `GlobalSearch.jsx`, `HardwareInsights.jsx`, `components/ClientDetailModal.jsx` — integrated `FlagIcon` to bypass Windows' missing native flag emojis; added `.vcreq` upload modal & per-row `.vclic` offline license download in `ClientRegistry.jsx`.
 - `admin-panel/src/lib/sessionGrouping.js`, `ClientAnalytics.jsx` — implemented Solution A (clean session evaluation based on error absence during idle timeout / stream tail).
 - `Unity/unityvc-base-project/.../AnalyticsLifecycleTracker.cs` — implemented Solution C (next-boot session recovery via PlayerPrefs, 10s heartbeat, and error tracking).
+- `functions/trialService.js`, `functions/index.js` — upgraded token signing to asymmetric `RS256` (with `HS256` backward compatibility), added automatic token re-issuance on `verifyTrial` (`8888` and post-`adminExtendTrial`), and added `adminIssueOfflineLicense` (`POST /adminApi/issueOfflineLicense`).
+- `Unity/Kayunet/Assets/Modules/License Verifier - Online/Script/LicenseVerifier.cs`, `LicenseSample.cs`, `InternetChecker.cs` — implemented RSA-2048 offline signature verification, hardware/project binding, multi-path AES-256 + HMAC-SHA256 anti-clock-rollback security anchor, and `.vcreq` / `.vclic` offline activation UI.
 
 ### Unity/unityvc-base-project
 

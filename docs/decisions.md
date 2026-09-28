@@ -48,3 +48,9 @@ not a secret. `if true` meant anyone could read/write/delete every
 Cloud Function validation. Cloud Functions use the Admin SDK, which ignores
 these rules, so this costs nothing functionally. Flagged to the user
 directly (not deployed yet — needs explicit confirmation, see tasks.md).
+
+## 2026-09-28 — Unified RS256 Asymmetric Online + Offline Licensing
+
+**Decision:** Upgraded client license tokens from symmetric `HS256` to asymmetric `RS256` (RSA-2048 SHA-256) while retaining `HS256` verification fallback on the server, and added `.vcreq` / `.vclic` offline activation in `adminIssueOfflineLicense` (`POST /adminApi/issueOfflineLicense`), `ClientRegistry.jsx`, and Unity's `LicenseVerifier.cs`.
+
+**Why:** Symmetric `HS256` cannot be verified offline in Unity without embedding `JWT_SECRET` in the client binary, which would allow anyone with a decompiler (ILSpy / Il2CppDumper) to extract the secret and forge arbitrary tokens. With `RS256`, the RSA-2048 private key stays exclusively in Cloud Functions while Unity embeds only the RSA-2048 public key. Both online and offline activations share the exact same `clients/{projectId}__{deviceId}` Firestore schema, `DeviceSystemInfo` telemetry, `TrialStatusCode` enum, and Admin Panel controls, protected offline by AES-256 + HMAC-SHA256 multi-path monotonic time anchors against clock rollback and token replay.

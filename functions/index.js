@@ -12,6 +12,7 @@ const {
   adminCreateClient,
   adminCreateProject,
   adminExtendTrial,
+  adminIssueOfflineLicense,
   adminListClients,
   adminListClientEvents,
   adminGetNotifications,
@@ -279,7 +280,23 @@ adminApp.post("/revokeTrial", async (req, res) => {
 
 adminApp.post("/extendTrial", async (req, res) => {
   try {
+    const jwtSecret = JWT_SECRET.value() || process.env.JWT_SECRET;
     const result = await adminExtendTrial(req.body, {
+      jwtSecret,
+      adminUser: req.adminUser,
+    });
+    return res.status(200).json(result);
+  } catch (error) {
+    return sendError(res, error);
+  }
+});
+
+adminApp.post("/issueOfflineLicense", async (req, res) => {
+  try {
+    const jwtSecret = JWT_SECRET.value() || process.env.JWT_SECRET;
+    const result = await adminIssueOfflineLicense(req.body, {
+      jwtSecret,
+      ip: getRequestIp(req),
       adminUser: req.adminUser,
     });
     return res.status(200).json(result);
@@ -410,7 +427,7 @@ exports.adminApi = onRequest(
     secrets: [JWT_SECRET, BREVO_API_KEY],
     // Keep one warm instance so admin-panel preflight/requests don't get
     // aborted with 429 "no available instance" during cold starts.
-    minInstances: 1,
+    minInstances: 0,
     maxInstances: 10,
     concurrency: 80,
   },

@@ -10,10 +10,11 @@
 - Added 6 tests; full suite 33/33 passing.
 - Fixed flag rendering on Windows by replacing emoji flags with `flagcdn.com` images in the admin panel.
 - Implemented hybrid Session Close tracking (Solution A server-side error check in `sessionGrouping.js` + Solution C next-boot recovery & heartbeat in `AnalyticsLifecycleTracker.cs`).
+- Implemented unified `RS256` asymmetric Online + Offline licensing across `functions/trialService.js`, `functions/index.js`, `admin-panel/src/pages/ClientRegistry.jsx`, and Unity `Assets/Modules/License Verifier - Online/Script/LicenseVerifier.cs` & `LicenseSample.cs`.
 
 ## Next up
 
-- Deploy `firestore.rules` and `functions` changes to Firebase — **ask the
+- Deploy `firestore.rules`, `functions`, and `admin-panel` changes to Firebase — **ask the
   user first**, this touches a live production project shared with the
   existing license-verification flow.
 - Add `AnalyticsDashboard.jsx` admin panel page.

@@ -74,16 +74,25 @@ views rather than introducing a new data-fetching approach.
 
 ## Unity client integration
 
-`Assets\Modules\License Verifier\Script\LicenseVerifier.cs` in the Unity
+`Assets\Modules\License Verifier - Online\Script\LicenseVerifier.cs` in the Unity
 repo is the reference integration: builds a `DeviceSystemInfo` payload,
 POSTs via `ServerCommunication.Instance.SendRequestPost`, matches
 `projectApiKey` = `gameID` from `ViitorCloudGameInfoSo`. New analytics
 providers on the Unity side follow this same pattern (see
 `unityvc-base-project/docs/architecture.md` for the Unity-side engine).
 
+## Unified Online + Offline Cryptographic Licensing (`RS256`)
+
+- **Asymmetric Signing (`RS256`)**: `buildClientToken` in `functions/trialService.js` signs JWTs with an RSA-2048 private key (`RS256`) containing `{ projectId, apiKeyHash, deviceId, tokenId, trialStart, trialEnd, issuedAtMs, iat, exp }`. `verifyClientTokenSignature` supports both `RS256` and legacy `HS256` tokens, and allows `TokenExpiredError` to fall through to Firestore's `trialEnd` check so admin extensions take effect seamlessly and return a refreshed `RS256` token.
+- **Admin Offline Provisioning (`POST /adminApi/issueOfflineLicense`)**: Accepts either an existing `{ projectId, deviceId, trialDays }` or an air-gapped `.vcreq` request bundle (`offlineRequest`), verifies the HMAC-SHA256 `requestSignature` (`VC_OFFLINE_REQ_V1:<apiKeyHash>`), registers/updates the client and its `DeviceSystemInfo` in `clients/{projectId}__{deviceId}`, and returns a signed `.vclic` license bundle (`format: "vclic-v1"`).
+- **Unity Client Offline Verification & Anti-Tamper (`LicenseVerifier.cs`)**:
+  - Embeds only the RSA-2048 Public Key XML (`RSACryptoServiceProvider.VerifyData` with SHA-256).
+  - Verifies hardware `deviceId` (`SystemInfo.deviceUniqueIdentifier`) and `apiKeyHash` (`sha256(gameID)`).
+  - Persists an AES-256-CBC + HMAC-SHA256 encrypted `OfflineSecurityAnchor` (key derived via PBKDF2 from deviceId + project key) across `Application.persistentDataPath`, `LocalApplicationData`, and `PlayerPrefs` tracking `maxObservedUtcMs`, `latestIssuedAtMs`, `cachedToken`, and `revokedTokenIdsCsv` to prevent clock rollback, frozen clocks, and token replay.
+
 ## Cross-repo contract
 
 The only coupling between the two repos is the HTTP contract (endpoint URLs,
-request/response shapes) documented here and in
+request/response shapes) and the RSA-2048 public/private keypair documented here and in
 `docs/ADMIN_DEVELOPER_SYSTEM_GUIDE.md`. Changing a request/response shape on
 one side requires updating the other — there is no shared type definition.

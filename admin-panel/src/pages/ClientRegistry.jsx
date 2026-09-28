@@ -5,7 +5,7 @@ import {
   MoreVertical, CheckCircle2, XCircle, AlertCircle,
   Trash2, Calendar, Download, ShieldAlert, UserCheck,
   UserMinus, Search, Filter, Zap, ChevronUp, ChevronDown, ChevronsUpDown,
-  Activity
+  Activity, Key, Upload, ShieldCheck
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useProject } from '../context/ProjectContext';
@@ -106,6 +106,91 @@ export function ClientRegistry() {
   const [datePickerOpen, setDatePickerOpen] = useState(null);
   const [datePickerDate, setDatePickerDate] = useState('');
   const [sort, setSort] = useState({ col: null, dir: 'asc' });
+  const [offlineModalOpen, setOfflineModalOpen] = useState(false);
+  const [offlineRequestData, setOfflineRequestData] = useState(null);
+  const [offlineRequestFileName, setOfflineRequestFileName] = useState('');
+  const [offlineManualDeviceId, setOfflineManualDeviceId] = useState('');
+  const [offlineTrialDays, setOfflineTrialDays] = useState(30);
+  const [offlineIssuing, setOfflineIssuing] = useState(false);
+
+  const downloadVclicBundle = (licenseFile, fallbackDeviceId = 'device') => {
+    const safeName = String(licenseFile?.deviceName || licenseFile?.deviceId || fallbackDeviceId)
+      .replace(/[^a-zA-Z0-9_-]/g, '_')
+      .slice(0, 48);
+    const jsonStr = JSON.stringify(licenseFile, null, 2);
+    const blob = new Blob([jsonStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${safeName}.vclic`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleDownloadOfflineLicense = async (client, extendDays = undefined) => {
+    try {
+      const res = await api.issueOfflineLicense({
+        projectId: selectedProjectId,
+        deviceId: client.deviceId,
+        ...(extendDays ? { extendDays } : {}),
+      });
+      if (res.licenseFile) {
+        downloadVclicBundle(res.licenseFile, client.deviceId);
+      }
+      addToast(`Offline license (.vclic) downloaded for ${client.deviceId}`, 'success');
+      loadClients();
+    } catch (error) {
+      addToast(`Failed to issue offline license: ${error.message}`, 'error');
+    }
+  };
+
+  const handleOfflineFileSelect = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      if (!parsed || typeof parsed !== 'object' || !parsed.deviceId) {
+        throw new Error('Missing deviceId in .vcreq request file.');
+      }
+      setOfflineRequestData(parsed);
+      setOfflineRequestFileName(file.name);
+      setOfflineManualDeviceId(parsed.deviceId);
+      addToast(`Loaded offline request for ${parsed.deviceId}`, 'info');
+    } catch (err) {
+      addToast(`Invalid .vcreq file: ${err.message}`, 'error');
+    }
+  };
+
+  const handleIssueOfflineFromModal = async () => {
+    const targetDeviceId = (offlineRequestData?.deviceId || offlineManualDeviceId || '').trim();
+    if (!targetDeviceId) {
+      addToast('Upload a .vcreq request file or enter a Device ID.', 'error');
+      return;
+    }
+    setOfflineIssuing(true);
+    try {
+      const res = await api.issueOfflineLicense({
+        projectId: selectedProjectId,
+        deviceId: targetDeviceId,
+        trialDays: Number(offlineTrialDays) || 30,
+        ...(offlineRequestData ? { offlineRequest: offlineRequestData } : {}),
+      });
+      if (res.licenseFile) {
+        downloadVclicBundle(res.licenseFile, targetDeviceId);
+      }
+      addToast(`Offline license (.vclic) issued and downloaded for ${targetDeviceId}`, 'success');
+      setOfflineModalOpen(false);
+      setOfflineRequestData(null);
+      setOfflineRequestFileName('');
+      setOfflineManualDeviceId('');
+      loadClients();
+    } catch (error) {
+      addToast(`Offline license error: ${error.message}`, 'error');
+    } finally {
+      setOfflineIssuing(false);
+    }
+  };
 
   const loadClients = async () => {
     if (!selectedProjectId) return;
@@ -264,25 +349,42 @@ export function ClientRegistry() {
               {clients.length} Total
             </span>
           </h2>
-          <p className="text-slate-400 text-sm mt-1">Manage and audit cross-platform trial licenses.</p>
+          <p className="text-slate-400 text-sm mt-1">Manage and audit cross-platform online & offline trial licenses.</p>
         </div>
         
-        <form onSubmit={(e) => { e.preventDefault(); loadClients(); }} className="flex gap-2">
-          <div className="relative group">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-cyan-500 transition-colors" />
-            <input
-              type="text"
-              placeholder="Search ID / IP..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="bg-slate-950/50 border border-slate-800 rounded-lg pl-9 pr-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500/50 transition-all w-64"
-            />
-          </div>
-          <Button type="submit" variant="secondary" className="gap-2">
-            <Filter size={14} />
-            Filter
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="secondary"
+            className="gap-2 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/30"
+            onClick={() => {
+              setOfflineRequestData(null);
+              setOfflineRequestFileName('');
+              setOfflineManualDeviceId('');
+              setOfflineTrialDays(30);
+              setOfflineModalOpen(true);
+            }}
+          >
+            <Key size={14} />
+            Offline License (.vcreq)
           </Button>
-        </form>
+          <form onSubmit={(e) => { e.preventDefault(); loadClients(); }} className="flex gap-2">
+            <div className="relative group">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-cyan-500 transition-colors" />
+              <input
+                type="text"
+                placeholder="Search ID / IP..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="bg-slate-950/50 border border-slate-800 rounded-lg pl-9 pr-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500/50 transition-all w-64"
+              />
+            </div>
+            <Button type="submit" variant="secondary" className="gap-2">
+              <Filter size={14} />
+              Filter
+            </Button>
+          </form>
+        </div>
       </div>
 
       <div className="bg-slate-900/40 border border-slate-800 rounded-2xl overflow-visible shadow-2xl">
@@ -465,6 +567,17 @@ export function ClientRegistry() {
                           >
                             <Activity size={14} />
                           </Link>
+
+                          {/* Download signed offline license (.vclic) */}
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 hover:bg-cyan-500/10 hover:text-cyan-400"
+                            title="Download Offline License (.vclic)"
+                            onClick={() => handleDownloadOfflineLicense(client)}
+                          >
+                            <Download size={14} />
+                          </Button>
 
                           {/* Quick +7 days */}
                           <Button
@@ -700,6 +813,145 @@ export function ClientRegistry() {
                   className="w-full text-center py-2 text-xs font-bold text-slate-500 hover:text-slate-300 transition-colors"
                 >
                   Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {offlineModalOpen && (() => {
+        const parsedInfo = offlineRequestData?.systemInfo ? readSystemInfo(offlineRequestData.systemInfo) : null;
+        return (
+          <div
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200"
+            onClick={() => !offlineIssuing && setOfflineModalOpen(false)}
+          >
+            <div
+              className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl ring-1 ring-white/10 overflow-hidden animate-in zoom-in-95 duration-200"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-start justify-between px-6 py-5 border-b border-slate-800 bg-slate-950/50">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 text-cyan-400 mb-1">
+                    <Key size={16} />
+                    <span className="text-[10px] font-black uppercase tracking-[0.2em]">Unified Offline License</span>
+                  </div>
+                  <p className="text-sm font-bold text-slate-100">Issue RS256 Signed License (.vclic)</p>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Upload an exported <code className="text-cyan-400">.vcreq</code> activation request from an offline machine or enter its Device ID.
+                  </p>
+                </div>
+                <button
+                  onClick={() => !offlineIssuing && setOfflineModalOpen(false)}
+                  className="h-8 w-8 shrink-0 inline-flex items-center justify-center rounded-lg text-slate-500 hover:bg-slate-800 hover:text-slate-200 transition-colors"
+                >
+                  <XCircle size={18} />
+                </button>
+              </div>
+
+              <div className="px-6 py-5 space-y-5">
+                <div>
+                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">
+                    1. Upload Device Activation Request (.vcreq)
+                  </p>
+                  <label className="flex flex-col items-center justify-center gap-2 p-4 rounded-xl border border-dashed border-slate-700 hover:border-cyan-500/50 bg-slate-950/60 cursor-pointer transition-colors">
+                    <Upload size={18} className="text-cyan-400" />
+                    <span className="text-xs font-medium text-slate-300">
+                      {offlineRequestFileName || 'Click to select .vcreq file exported from Unity'}
+                    </span>
+                    <input
+                      type="file"
+                      accept=".vcreq,.json"
+                      onChange={handleOfflineFileSelect}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+
+                {offlineRequestData && (
+                  <div className="p-3.5 rounded-xl bg-slate-950/80 border border-emerald-500/20 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400 flex items-center gap-1.5">
+                        <ShieldCheck size={13} />
+                        Hardware Telemetry Bound
+                      </span>
+                      <span className="text-[10px] font-mono text-slate-500">
+                        {offlineRequestData.format || 'vcreq-v1'}
+                      </span>
+                    </div>
+                    <p className="text-xs font-bold text-slate-200 truncate">
+                      {parsedInfo?.deviceName || offlineRequestData.deviceId}
+                    </p>
+                    <p className="text-[11px] font-mono text-slate-400 truncate">
+                      ID: {offlineRequestData.deviceId}
+                    </p>
+                    {parsedInfo && (
+                      <p className="text-[10px] text-slate-500 truncate">
+                        {parsedInfo.os} · {parsedInfo.cpu} · {parsedInfo.gpu}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                <div>
+                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                    2. Target Device Unique Identifier
+                  </p>
+                  <input
+                    type="text"
+                    placeholder="Device Unique Identifier..."
+                    value={offlineManualDeviceId}
+                    onChange={(e) => setOfflineManualDeviceId(e.target.value)}
+                    disabled={Boolean(offlineRequestData)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs font-mono text-slate-100 focus:outline-none focus:border-cyan-500/50 disabled:opacity-60"
+                  />
+                </div>
+
+                <div>
+                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">
+                    3. License Validity Duration (Days)
+                  </p>
+                  <div className="grid grid-cols-4 gap-2 mb-2.5">
+                    {[
+                      { label: '7 Days', days: 7 },
+                      { label: '30 Days', days: 30 },
+                      { label: '180 Days', days: 180 },
+                      { label: '1 Year', days: 365 },
+                    ].map(({ label, days }) => (
+                      <button
+                        key={days}
+                        type="button"
+                        onClick={() => setOfflineTrialDays(days)}
+                        className={cn(
+                          'text-xs font-bold rounded-lg py-2 border transition-colors',
+                          Number(offlineTrialDays) === days
+                            ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/50'
+                            : 'bg-slate-950 text-slate-400 border-slate-800 hover:border-slate-700'
+                        )}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  <input
+                    type="number"
+                    min="1"
+                    max="3650"
+                    value={offlineTrialDays}
+                    onChange={(e) => setOfflineTrialDays(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs font-mono text-slate-100 focus:outline-none focus:border-cyan-500/50"
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  disabled={offlineIssuing}
+                  onClick={handleIssueOfflineFromModal}
+                  className="w-full text-sm font-bold text-slate-950 bg-cyan-500 hover:bg-cyan-400 disabled:opacity-40 rounded-lg px-4 py-2.5 transition-colors flex items-center justify-center gap-2"
+                >
+                  <Download size={15} />
+                  {offlineIssuing ? 'Signing & Registering...' : 'Issue & Download .vclic License'}
                 </button>
               </div>
             </div>

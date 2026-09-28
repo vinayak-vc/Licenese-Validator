@@ -27,7 +27,9 @@ const { db } = require("../firebase");
 const {
   CODES,
   TrialServiceError,
+  computeOfflineRequestSignature,
   adminCreateProject,
+  adminIssueOfflineLicense,
   adminListProjects,
   adminListProjectClients,
   startTrial,
@@ -422,5 +424,146 @@ describe("logEvents", () => {
     await expect(
       logEvents({ projectApiKey: "k", deviceId: "d", events: [{ params: {} }] })
     ).rejects.toBeInstanceOf(TrialServiceError);
+  });
+});
+
+describe("unified offline license issuance & verification", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    uuidv4.mockReturnValue("offline-tok-1");
+    jwt.sign.mockReturnValue("signed-offline-rs256-jwt");
+  });
+
+  it("adminIssueOfflineLicense verifies .vcreq HMAC signature and registers new offline client", async () => {
+    const createMock = jest.fn().mockResolvedValue(undefined);
+    const apiKeyHash = "a1b2c3d4e5f6";
+    const requestedAtUtcMs = 1759000000000;
+    const validSignature = computeOfflineRequestSignature(apiKeyHash, "device-airgap-1", requestedAtUtcMs);
+
+    db.collection.mockImplementation((name) => {
+      if (name === "projects") {
+        return mockProjectsCollection({
+          projectDoc: {
+            id: "proj1",
+            name: "Stage Viewer",
+            active: true,
+            apiKeyHash,
+          },
+        });
+      }
+      if (name === "clients") {
+        return {
+          doc: jest.fn().mockReturnValue({
+            get: jest.fn().mockResolvedValue({ exists: false }),
+            create: createMock,
+          }),
+        };
+      }
+      return {};
+    });
+
+    const res = await adminIssueOfflineLicense(
+      {
+        projectId: "proj1",
+        trialDays: 30,
+        offlineRequest: {
+          format: "vcreq-v1",
+          apiKeyHash,
+          deviceId: "device-airgap-1",
+          requestedAtUtcMs,
+          requestSignature: validSignature,
+          systemInfo: {
+            os: "Windows 11",
+            cpu: "Intel Core i9",
+            gpu: "NVIDIA RTX 4080",
+          },
+        },
+      },
+      { jwtSecret: "secret" }
+    );
+
+    expect(res.statusCode).toBe(CODES.ADMIN_OFFLINE_LICENSE_ISSUED);
+    expect(res.token).toBe("signed-offline-rs256-jwt");
+    expect(res.licenseFile.format).toBe("vclic-v1");
+    expect(res.licenseFile.deviceId).toBe("device-airgap-1");
+    expect(createMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("adminIssueOfflineLicense rejects tampered .vcreq signature", async () => {
+    const apiKeyHash = "a1b2c3d4e5f6";
+    db.collection.mockImplementation((name) => {
+      if (name === "projects") {
+        return mockProjectsCollection({
+          projectDoc: {
+            id: "proj1",
+            name: "Stage Viewer",
+            active: true,
+            apiKeyHash,
+          },
+        });
+      }
+      return {};
+    });
+
+    await expect(
+      adminIssueOfflineLicense({
+        projectId: "proj1",
+        trialDays: 30,
+        offlineRequest: {
+          format: "vcreq-v1",
+          apiKeyHash,
+          deviceId: "tampered-device-id",
+          requestedAtUtcMs: 1759000000000,
+          requestSignature: "0000bad0000",
+        },
+      })
+    ).rejects.toMatchObject({
+      statusCode: CODES.INVALID_OFFLINE_REQUEST,
+    });
+  });
+
+  it("verifyTrial re-issues a fresh token when token is missing on an active device (8888)", async () => {
+    db.collection.mockImplementation((name) => {
+      if (name === "projects") {
+        return mockProjectsCollection({
+          projectByApiKey: {
+            id: "proj1",
+            name: "Project 1",
+            active: true,
+            apiKeyHash: "hash1",
+          },
+        });
+      }
+      if (name === "clients") {
+        return {
+          doc: jest.fn().mockReturnValue({
+            get: jest.fn().mockResolvedValue({
+              exists: true,
+              data: () => ({
+                deviceId: "device-1",
+                projectId: "proj1",
+                tokenId: "tok-existing",
+                trialStart: Date.now() - 1000,
+                trialEnd: Date.now() + 600000,
+              }),
+            }),
+            update: jest.fn().mockResolvedValue(undefined),
+          }),
+        };
+      }
+      return {};
+    });
+
+    const res = await verifyTrial(
+      {
+        projectApiKey: "valid-api-key",
+        deviceId: "device-1",
+        token: "",
+      },
+      { jwtSecret: "secret" }
+    );
+
+    expect(res.statusCode).toBe(CODES.DEVICE_REGISTERED_TOKEN_MISSING_TRIAL_ACTIVE);
+    expect(res.token).toBe("signed-offline-rs256-jwt");
   });
 });

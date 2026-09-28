@@ -61,6 +61,7 @@ export const api = {
   createClient: (data) => callAdmin('POST', '/createClient', data),
   updateClient: (data) => callAdmin('POST', '/updateClient', data),
   extendTrial: (data) => callAdmin('POST', '/extendTrial', data),
+  issueOfflineLicense: (data) => callAdmin('POST', '/issueOfflineLicense', data),
   revokeTrial: (data) => callAdmin('POST', '/revokeTrial', data),
   searchClients: (q) => callAdmin('GET', `/clients/search?q=${encodeURIComponent(q)}`),
   getNotifications: () => callAdmin('GET', '/notifications'),

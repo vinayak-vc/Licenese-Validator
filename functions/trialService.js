@@ -29,6 +29,7 @@ const CODES = {
   TRIAL_VERIFIED: "1001",
   ADMIN_CLIENT_CREATED: "1100",
   ADMIN_CLIENT_UPDATED: "1104",
+  ADMIN_OFFLINE_LICENSE_ISSUED: "1105",
   ADMIN_TRIAL_REVOKED: "1101",
   ADMIN_TRIAL_EXTENDED: "1102",
   ADMIN_CLIENTS_LISTED: "1103",
@@ -62,6 +63,7 @@ const CODES = {
   PROJECT_ALREADY_EXISTS: "4015",
   INVALID_APPLICATION_TYPE: "4016",
   INVALID_EVENTS: "4017",
+  INVALID_OFFLINE_REQUEST: "4018",
   CLIENT_NOT_FOUND: "7010",
   UNAUTHORIZED: "4030",
   FORBIDDEN: "4031",
@@ -70,6 +72,70 @@ const CODES = {
   METHOD_NOT_ALLOWED: "4050",
   EVENTS_LOGGED: "1300",
 };
+
+// RSA-2048 keypair for asymmetric RS256 license token signing.
+// The private key never leaves the backend; Unity clients embed only the public key
+// so offline license verification is cryptographically unforgeable.
+const DEFAULT_LICENSE_PRIVATE_KEY_PEM = [
+  "-----BEGIN PRIVATE KEY-----",
+  "MIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQCrk2HLqlLYQk8X",
+  "39pqOnLesZZScQuXNtUjsL+aSJikp6hfekaVnEStNMLVAaUSpdL+e3f8PAAqw4n2",
+  "tHFewSaFlta63fFeaZuyMby5fm8Jg6aiOM3xy/dh2zTXVvzH0xMeS6I4e15Z7XUY",
+  "weLbHWHAX6WUAe7K2j/WjXJ9rEOFA2Ze9st1FaowxfxltGvGL5LueOq2jb6z626v",
+  "K5ieG+R5f/BBuYt2PuN++Jg6MmE48zNOByEkPO8fNnHWyD/qR5hEufDLPdBJ+bhB",
+  "WsLqaA0sM7PMkSd+QDdxXlwljd+12tbxD1W+kSbAj9Jy9KYf1hmVP2HtQwodwck1",
+  "aQeS9/eJAgMBAAECggEAC3K0ikctlZdrDpqVnhPoo+TxNO6tCXm+TqOATVY9tR1+",
+  "CwzYwSp28fWncFir6oAdAXTnOccecxFZVxg4HkyV+kDpHU5/cz9pr5dI/TmAmtUU",
+  "HRaG4J+C50kd5VESYcTlgtZ6Fvmy/x4XJj/oQprbHF+6vRLvRiK6Mrcnu1dEqWRy",
+  "NuMEhApwTOIOgCvUhNs1mMVUiSPt5obsfRZCEOpTmE5L+lQKk0YutABzEpXhBb+O",
+  "nzKkCiGak2o7zVznqAeSKlKFUSqCyoDlCrCPilqo1wlwMXTPhUp8mdJBCIAQhf6C",
+  "xz0Rl+u/nxJEadlqrP9gOT4v0Q8+7s05LJM444hu3wKBgQDR1AVvEaBjIBB1Sltb",
+  "ojwbyNGevrwaskdznjcO5BZxVmta519G8nuRlAtm7m6yRs51c6BQkGBg+SCyvLrb",
+  "UMv47HTzpj3jCf6D5su3HWU5iYdRnTXd7pM06Xm04PGBbLwce/LDfrY4vqtFtYPg",
+  "Nsf0f3UrkI0e/vRYpGchrHaIuwKBgQDRVIhjhIIqmqo52Htbt/lfDET+kNfkg47x",
+  "eWlIqkeI5cq75XhG1oSwlMVq9YNyAS86fJIVd5Oloh663IpcurPhgUSmIObpahye",
+  "zMzLuG5efRUBpL7ScHFK1VC+GEIw1UVIXI1JZJcxUrzguShECYE1X2nOvuJQb7q8",
+  "jsJy8gyOiwKBgGg1SE2VD3arYgEeYKjttbSG07RnPbx0dg/xr55xoMPBC6gl6Kev",
+  "nbb7M353Q/q+N6MVPbVFPthqYdbi7FonkmWZ6atoEKxFNmYDpYDX1IHyz4W08h+6",
+  "cNmCarNuVALXIcVzuWll8NHVv/Hq6AferQe8lVCBhdSzAl9TpvSOVoApAoGAZA+T",
+  "TnbFvdXGrvXzKYmMk0mLJWBZQqs8ReMyV4DFxwOI4D41Oy9JqBrFL3aCSZmVWNC5",
+  "B7fsBM21AL9xCBha6d1f0kWB+2s0mRfugSb84v/JbcqxSGhlT08eVG/GHA+mGYvc",
+  "IYwK1ZHmJUl8nOEqOTgNnL0T8z0lNwLKoiVfqTcCgYAw29u5g/S1tLhHW9eDHmlU",
+  "FfN8JeVj4PXZ2lR/CbGRw/n0AFLGxE059cuNvptaTts9WWVKJ/iSFhsoyqHdVb+4",
+  "fOfU1OAwveTIQVWsRt8dvOL50jMdEyku2UhGalxtFbA2mxc+B85jCj829OVgcx6c",
+  "YhM/g3Q4iww/mtNsyg3q8A==",
+  "-----END PRIVATE KEY-----",
+].join("\n");
+
+const DEFAULT_LICENSE_PUBLIC_KEY_PEM = [
+  "-----BEGIN PUBLIC KEY-----",
+  "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAq5Nhy6pS2EJPF9/aajpy",
+  "3rGWUnELlzbVI7C/mkiYpKeoX3pGlZxErTTC1QGlEqXS/nt3/DwAKsOJ9rRxXsEm",
+  "hZbWut3xXmmbsjG8uX5vCYOmojjN8cv3Yds011b8x9MTHkuiOHteWe11GMHi2x1h",
+  "wF+llAHuyto/1o1yfaxDhQNmXvbLdRWqMMX8ZbRrxi+S7njqto2+s+turyuYnhvk",
+  "eX/wQbmLdj7jfviYOjJhOPMzTgchJDzvHzZx1sg/6keYRLnwyz3QSfm4QVrC6mgN",
+  "LDOzzJEnfkA3cV5cJY3ftdrW8Q9VvpEmwI/ScvSmH9YZlT9h7UMKHcHJNWkHkvf3",
+  "iQIDAQAB",
+  "-----END PUBLIC KEY-----",
+].join("\n");
+
+function getLicensePrivateKeyPem() {
+  return process.env.LICENSE_PRIVATE_KEY || DEFAULT_LICENSE_PRIVATE_KEY_PEM;
+}
+
+function getLicensePublicKeyPem() {
+  return process.env.LICENSE_PUBLIC_KEY || DEFAULT_LICENSE_PUBLIC_KEY_PEM;
+}
+
+function computeOfflineRequestSignature(apiKeyHash, deviceId, requestedAtUtcMs) {
+  const normalizedHash = String(apiKeyHash || "").trim().toLowerCase();
+  const normalizedDevice = String(deviceId || "").trim();
+  const timestamp = Number(requestedAtUtcMs || 0);
+  return crypto
+    .createHmac("sha256", `VC_OFFLINE_REQ_V1:${normalizedHash}`)
+    .update(`${normalizedHash}|${normalizedDevice}|${timestamp}`)
+    .digest("hex");
+}
 
 class TrialServiceError extends Error {
   constructor(message, httpStatus, statusCode, error) {
@@ -573,19 +639,67 @@ function validateAdminListClientsInput(payload) {
   };
 }
 
-function buildClientToken(jwtSecret, deviceId, tokenId, projectId, expiresInSeconds) {
-  return jwt.sign(
-    {
-      projectId,
-      deviceId,
-      tokenId,
-    },
-    jwtSecret,
-    {
-      algorithm: "HS256",
-      expiresIn: Math.max(1, expiresInSeconds),
+function buildClientToken(jwtSecret, deviceId, tokenId, projectId, expiresInSeconds, extraClaims = {}) {
+  const claims = {
+    projectId,
+    deviceId,
+    tokenId,
+  };
+  if (extraClaims && typeof extraClaims === "object") {
+    if (extraClaims.apiKeyHash) {
+      claims.apiKeyHash = String(extraClaims.apiKeyHash).toLowerCase();
     }
-  );
+    if (Number.isFinite(extraClaims.trialStart)) {
+      claims.trialStart = Number(extraClaims.trialStart);
+    }
+    if (Number.isFinite(extraClaims.trialEnd)) {
+      claims.trialEnd = Number(extraClaims.trialEnd);
+    }
+    if (Number.isFinite(extraClaims.issuedAtMs)) {
+      claims.issuedAtMs = Number(extraClaims.issuedAtMs);
+    }
+  }
+  return jwt.sign(claims, getLicensePrivateKeyPem(), {
+    algorithm: "RS256",
+    expiresIn: Math.max(1, expiresInSeconds),
+  });
+}
+
+function detectTokenAlgorithm(token) {
+  if (typeof token !== "string") return "HS256";
+  const parts = token.split(".");
+  if (parts.length !== 3) return "HS256";
+  try {
+    const headerJson = Buffer.from(parts[0], "base64url").toString("utf8");
+    const header = JSON.parse(headerJson);
+    if (header && header.alg === "RS256") {
+      return "RS256";
+    }
+  } catch (_) {
+    // Fallback to HS256
+  }
+  return "HS256";
+}
+
+function verifyClientTokenSignature(token, jwtSecret) {
+  const alg = detectTokenAlgorithm(token);
+  const verifyKey = alg === "RS256" ? getLicensePublicKeyPem() : jwtSecret;
+  try {
+    return jwt.verify(token, verifyKey, {
+      algorithms: [alg],
+    });
+  } catch (error) {
+    // If the JWT's internal exp passed because an admin extended trialEnd in Firestore
+    // after the token was originally minted, verify cryptographic signature with
+    // ignoreExpiration: true and let Firestore's data.trialEnd govern expiration.
+    if (error && error.name === "TokenExpiredError") {
+      return jwt.verify(token, verifyKey, {
+        algorithms: [alg],
+        ignoreExpiration: true,
+      });
+    }
+    throw error;
+  }
 }
 
 async function startTrial(payload, options) {
@@ -603,6 +717,7 @@ async function startTrial(payload, options) {
   }
 
   const project = await resolveProjectFromApiKey(projectApiKey);
+  const apiKeyHash = project.apiKeyHash || hashApiKey(projectApiKey);
   const now = Date.now();
   const trialStart = now;
   const trialEnd = now + TRIAL_DURATION_MS;
@@ -612,7 +727,13 @@ async function startTrial(payload, options) {
     deviceId,
     tokenId,
     project.id,
-    Math.floor((trialEnd - now) / 1000)
+    Math.floor((trialEnd - now) / 1000),
+    {
+      apiKeyHash,
+      trialStart,
+      trialEnd,
+      issuedAtMs: now,
+    }
   );
 
   const clientDocId = buildClientDocId(project.id, deviceId);
@@ -685,6 +806,7 @@ async function verifyTrial(payload, options) {
   }
 
   const project = await resolveProjectFromApiKey(projectApiKey);
+  const apiKeyHash = project.apiKeyHash || hashApiKey(projectApiKey);
   const docRef = db.collection(CLIENTS_COLLECTION).doc(buildClientDocId(project.id, deviceId));
   const snapshot = await docRef.get();
   if (!snapshot.exists) {
@@ -709,6 +831,7 @@ async function verifyTrial(payload, options) {
   docRef.update({ lastOnline: Date.now() }).catch(() => {});
 
   const trialEnd = Number(data?.trialEnd || 0);
+  const trialStart = Number(data?.trialStart || Date.now());
   const now = Date.now();
 
   if (!Number.isFinite(trialEnd) || trialEnd <= 0) {
@@ -722,9 +845,27 @@ async function verifyTrial(payload, options) {
 
   if (!token) {
     if (now <= trialEnd) {
+      let activeTokenId = data?.tokenId;
+      if (!activeTokenId) {
+        activeTokenId = uuidv4();
+        docRef.update({ tokenId: activeTokenId }).catch(() => {});
+      }
+      const reissuedToken = buildClientToken(
+        jwtSecret,
+        deviceId,
+        activeTokenId,
+        project.id,
+        Math.max(1, Math.floor((trialEnd - now) / 1000)),
+        {
+          apiKeyHash,
+          trialStart,
+          trialEnd,
+          issuedAtMs: now,
+        }
+      );
       return responseBody({
         message: "Device registered and trial is active. Start Trial popup is not required.",
-        token: "",
+        token: reissuedToken,
         statusCode: CODES.DEVICE_REGISTERED_TOKEN_MISSING_TRIAL_ACTIVE,
         error: null,
       });
@@ -740,9 +881,7 @@ async function verifyTrial(payload, options) {
 
   let decoded;
   try {
-    decoded = jwt.verify(token, jwtSecret, {
-      algorithms: ["HS256"],
-    });
+    decoded = verifyClientTokenSignature(token, jwtSecret);
   } catch (error) {
     return responseBody({
       message: "Invalid token",
@@ -788,9 +927,33 @@ async function verifyTrial(payload, options) {
     });
   }
 
+  // If the client's token was a legacy HS256 token or its embedded trialEnd
+  // differs from Firestore's current trialEnd (e.g. after adminExtendTrial),
+  // mint a fresh RS256 token so the client's local offline cache stays in sync.
+  let verifiedToken = token;
+  const needsRefresh =
+    (typeof token === "string" && token.split(".").length === 3 && !decoded.apiKeyHash) ||
+    (decoded.trialEnd !== undefined && Number(decoded.trialEnd) !== trialEnd);
+
+  if (needsRefresh) {
+    verifiedToken = buildClientToken(
+      jwtSecret,
+      deviceId,
+      data.tokenId,
+      project.id,
+      Math.max(1, Math.floor((trialEnd - now) / 1000)),
+      {
+        apiKeyHash,
+        trialStart,
+        trialEnd,
+        issuedAtMs: now,
+      }
+    );
+  }
+
   return responseBody({
     message: "Trial verified successfully",
-    token,
+    token: verifiedToken,
     statusCode: CODES.TRIAL_VERIFIED,
     error: null,
   });
@@ -980,6 +1143,7 @@ async function adminCreateClient(payload, options) {
     throw new TrialServiceError("Project is inactive", 403, CODES.PROJECT_INACTIVE, "PROJECT_INACTIVE");
   }
 
+  const apiKeyHash = project.apiKeyHash || (project.apiKey ? hashApiKey(project.apiKey) : "");
   const now = Date.now();
   const trialStart = now;
   const trialEnd = now + trialDays * 24 * 60 * 60 * 1000;
@@ -989,7 +1153,13 @@ async function adminCreateClient(payload, options) {
     deviceId,
     tokenId,
     project.id,
-    Math.floor((trialEnd - now) / 1000)
+    Math.floor((trialEnd - now) / 1000),
+    {
+      apiKeyHash,
+      trialStart,
+      trialEnd,
+      issuedAtMs: now,
+    }
   );
 
   const docRef = db.collection(CLIENTS_COLLECTION).doc(buildClientDocId(project.id, deviceId));
@@ -1061,7 +1231,7 @@ async function adminRevokeTrial(payload) {
   });
 }
 
-async function adminExtendTrial(payload) {
+async function adminExtendTrial(payload, options) {
   const { deviceId, projectId, extendDays } = validateAdminExtendInput(payload);
   const docRef = db.collection(CLIENTS_COLLECTION).doc(buildClientDocId(projectId, deviceId));
   const snapshot = await docRef.get();
@@ -1074,18 +1244,258 @@ async function adminExtendTrial(payload) {
   const currentEnd = Number(data.trialEnd || 0);
   const base = Number.isFinite(currentEnd) && currentEnd > now ? currentEnd : now;
   const updatedTrialEnd = base + extendDays * 24 * 60 * 60 * 1000;
+  const tokenId = data.tokenId && !data.revoked ? data.tokenId : uuidv4();
 
   await docRef.update({
     trialEnd: updatedTrialEnd,
+    tokenId,
     revoked: false,
     updatedAt: FieldValue.serverTimestamp(),
   });
 
+  let updatedToken = "";
+  if (options?.jwtSecret) {
+    try {
+      const project = await getProjectById(projectId);
+      const apiKeyHash = project?.apiKeyHash || (project?.apiKey ? hashApiKey(project.apiKey) : "");
+      updatedToken = buildClientToken(
+        options.jwtSecret,
+        deviceId,
+        tokenId,
+        projectId,
+        Math.max(1, Math.floor((updatedTrialEnd - now) / 1000)),
+        {
+          apiKeyHash,
+          trialStart: Number(data.trialStart || now),
+          trialEnd: updatedTrialEnd,
+          issuedAtMs: now,
+        }
+      );
+    } catch (_) {
+      updatedToken = "";
+    }
+  }
+
   return responseBody({
     message: "Trial extended successfully",
-    token: "",
+    token: updatedToken,
     statusCode: CODES.ADMIN_TRIAL_EXTENDED,
     error: null,
+  });
+}
+
+async function adminIssueOfflineLicense(payload, options) {
+  if (!payload || typeof payload !== "object") {
+    throw new TrialServiceError("Invalid request body", 400, CODES.INVALID_BODY, "INVALID_BODY");
+  }
+
+  const jwtSecret = options?.jwtSecret || "offline-rs256";
+  const ip = normalizeIp(options?.ip);
+  const projectId = typeof payload.projectId === "string" ? payload.projectId.trim() : "";
+  if (!isNonEmptyString(projectId, 120)) {
+    throw new TrialServiceError("Invalid projectId", 400, CODES.INVALID_PROJECT_ID, "INVALID_PROJECT_ID");
+  }
+
+  const project = await getProjectById(projectId);
+  if (!project) {
+    throw new TrialServiceError("Project not found", 404, CODES.PROJECT_NOT_FOUND, "PROJECT_NOT_FOUND");
+  }
+  if (!project.active) {
+    throw new TrialServiceError("Project is inactive", 403, CODES.PROJECT_INACTIVE, "PROJECT_INACTIVE");
+  }
+
+  const projectApiKeyHash = String(
+    project.apiKeyHash || (project.apiKey ? hashApiKey(project.apiKey) : "")
+  ).toLowerCase();
+
+  let reqObj = payload.offlineRequest;
+  if (typeof reqObj === "string" && reqObj.trim().length > 0) {
+    try {
+      reqObj = JSON.parse(reqObj);
+    } catch (_) {
+      throw new TrialServiceError(
+        "Invalid offline request file format",
+        400,
+        CODES.INVALID_OFFLINE_REQUEST,
+        "INVALID_OFFLINE_REQUEST"
+      );
+    }
+  }
+
+  if (reqObj && typeof reqObj === "object") {
+    const reqKeyHash = String(
+      reqObj.apiKeyHash || (reqObj.projectApiKey ? hashApiKey(reqObj.projectApiKey) : "")
+    ).toLowerCase();
+
+    if (reqKeyHash && projectApiKeyHash && reqKeyHash !== projectApiKeyHash) {
+      throw new TrialServiceError(
+        "Offline request belongs to a different project",
+        400,
+        CODES.PROJECT_MISMATCH,
+        "PROJECT_MISMATCH"
+      );
+    }
+
+    if (reqObj.requestSignature || reqObj.format === "vcreq-v1") {
+      const expectedSig = computeOfflineRequestSignature(
+        projectApiKeyHash,
+        reqObj.deviceId,
+        reqObj.requestedAtUtcMs
+      );
+      if (
+        typeof reqObj.requestSignature !== "string" ||
+        reqObj.requestSignature.trim().toLowerCase() !== expectedSig
+      ) {
+        throw new TrialServiceError(
+          "Offline activation request signature is invalid or tampered",
+          400,
+          CODES.INVALID_OFFLINE_REQUEST,
+          "INVALID_OFFLINE_REQUEST"
+        );
+      }
+    }
+  }
+
+  const rawDeviceId = payload.deviceId || reqObj?.deviceId;
+  if (!isNonEmptyString(rawDeviceId, 256)) {
+    throw new TrialServiceError("Invalid deviceId", 400, CODES.INVALID_DEVICE_ID, "INVALID_DEVICE_ID");
+  }
+  const deviceId = rawDeviceId.trim();
+
+  const rawDays = payload.trialDays ?? payload.extendDays;
+  let requestedDays = null;
+  if (rawDays !== undefined && rawDays !== null && rawDays !== "") {
+    const parsedDays = Number(rawDays);
+    if (!Number.isInteger(parsedDays) || parsedDays <= 0 || parsedDays > 3650) {
+      throw new TrialServiceError(
+        "Invalid trialDays",
+        400,
+        CODES.INVALID_TRIAL_DAYS,
+        "INVALID_TRIAL_DAYS"
+      );
+    }
+    requestedDays = parsedDays;
+  }
+
+  const now = Date.now();
+  const docRef = db.collection(CLIENTS_COLLECTION).doc(buildClientDocId(project.id, deviceId));
+  const snapshot = await docRef.get();
+
+  let trialStart = now;
+  let trialEnd = now + (requestedDays || 7) * DAY_MS;
+  let tokenId = uuidv4();
+  let finalSystemInfo = {};
+
+  const incomingSystemInfoRaw = payload.systemInfo || reqObj?.systemInfo;
+
+  if (!snapshot.exists) {
+    finalSystemInfo = incomingSystemInfoRaw
+      ? validateSystemInfo(incomingSystemInfoRaw)
+      : {
+          os: "Windows",
+          cpu: "Offline Compute Node",
+          gpu: "Standard GPU",
+          hardware: { cpu: "Offline Compute Node", gpu: "Standard GPU" },
+          system: { os: "Windows" },
+        };
+
+    const clientDoc = {
+      deviceId,
+      projectId: project.id,
+      tokenId,
+      trialStart,
+      trialEnd,
+      systemInfo: finalSystemInfo,
+      ip: ip !== "unknown" ? ip : "offline-activation",
+      createdAt: FieldValue.serverTimestamp(),
+      createdBy: "admin-offline",
+    };
+
+    await docRef.create(clientDoc);
+
+    notifyNewClient({
+      projectName: project.name,
+      projectId: project.id,
+      deviceId,
+      ip: clientDoc.ip,
+      systemInfo: finalSystemInfo,
+      trialStart,
+      trialEnd,
+      source: "admin",
+    });
+  } else {
+    const existingData = snapshot.data() || {};
+    trialStart = Number(existingData.trialStart || now);
+    const currentEnd = Number(existingData.trialEnd || 0);
+    tokenId = existingData.tokenId && !existingData.revoked ? existingData.tokenId : uuidv4();
+
+    if (requestedDays !== null) {
+      const base = Number.isFinite(currentEnd) && currentEnd > now ? currentEnd : now;
+      trialEnd = base + requestedDays * DAY_MS;
+    } else if (Number.isFinite(currentEnd) && currentEnd > now) {
+      trialEnd = currentEnd;
+    } else {
+      trialEnd = now + 7 * DAY_MS;
+    }
+
+    finalSystemInfo = existingData.systemInfo || {};
+    if (incomingSystemInfoRaw && typeof incomingSystemInfoRaw === "object") {
+      const partial = sanitizePartialSystemInfo(incomingSystemInfoRaw);
+      if (Object.keys(partial).length > 0) {
+        finalSystemInfo = mergeSystemInfo(finalSystemInfo, partial);
+      }
+    }
+
+    await docRef.update({
+      trialEnd,
+      tokenId,
+      revoked: false,
+      systemInfo: finalSystemInfo,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+  }
+
+  const token = buildClientToken(
+    jwtSecret,
+    deviceId,
+    tokenId,
+    project.id,
+    Math.max(1, Math.floor((trialEnd - now) / 1000)),
+    {
+      apiKeyHash: projectApiKeyHash,
+      trialStart,
+      trialEnd,
+      issuedAtMs: now,
+    }
+  );
+
+  const licenseFile = {
+    format: "vclic-v1",
+    projectId: project.id,
+    projectName: project.name || "",
+    apiKeyHash: projectApiKeyHash,
+    deviceId,
+    deviceName: finalSystemInfo?.device?.deviceName || "",
+    trialStart,
+    trialEnd,
+    issuedAtUtcMs: now,
+    token,
+  };
+
+  return responseBody({
+    message: "Offline license issued successfully",
+    token,
+    statusCode: CODES.ADMIN_OFFLINE_LICENSE_ISSUED,
+    error: null,
+    licenseFile,
+    client: {
+      deviceId,
+      projectId: project.id,
+      trialStart,
+      trialEnd,
+      systemInfo: finalSystemInfo,
+      status: "active",
+    },
   });
 }
 
@@ -1710,9 +2120,11 @@ module.exports = {
   CODES,
   TrialServiceError,
   responseBody,
+  computeOfflineRequestSignature,
   adminCreateClient,
   adminCreateProject,
   adminExtendTrial,
+  adminIssueOfflineLicense,
   adminListClients,
   adminGetNotifications,
   adminListClientEvents,
